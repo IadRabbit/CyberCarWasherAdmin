@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- base -->
+    <color name="black">#FF000000</color>
+    <color name="white">#FFFFFFFF</color>
+
+    <!-- backgrounds -->
+    <color name="bg_void">#FF05010D</color>
+    <color name="bg_surface">#FF0B0420</color>
+    <color name="bg_panel">#FF120B2E</color>
+
+    <!-- neon accents -->
+    <color name="neon_cyan">#FF00F6FF</color>
+    <color name="neon_magenta">#FFFF2E9F</color>
+    <color name="neon_purple">#FF8B5CF6</color>
+    <color name="neon_green">#FF39FF6A</color>
+    <color name="neon_amber">#FFFFC145</color>
+    <color name="neon_red">#FFFF3B5C</color>
+
+    <!-- text -->
+    <color name="text_primary">#FFEAF2FF</color>
+    <color name="text_dim">#FF6E7AA8</color>
+    <color name="text_faint">#FF4A5578</color>
+</resources>

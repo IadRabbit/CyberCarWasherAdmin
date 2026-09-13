@@ -1,0 +1,76 @@
+<resources>
+    <string name="app_name">CyberCarWasherAdmin</string>
+
+    <!-- home -->
+    <string name="home_tag">// ADMIN CONSOLE</string>
+    <string name="home_title">CYBER\nCAR WASH</string>
+    <string name="home_subtitle">customer &amp; pos management</string>
+    <string name="home_button_create">New customer</string>
+    <string name="home_button_pos">POS</string>
+    <string name="home_button_format">Format card</string>
+    <string name="home_button_read">Read card</string>
+    <string name="home_footer">W MEETHACK</string>
+
+    <!-- create customer -->
+    <string name="create_header">New customer</string>
+    <string name="create_label_nome">First name</string>
+    <string name="create_label_cognome">Last name</string>
+    <string name="create_label_saldo">Initial balance (€)</string>
+    <string name="create_label_data">Creation date</string>
+    <string name="create_button_write">Write to card</string>
+    <string name="create_error_nome">Enter the first name</string>
+    <string name="create_error_cognome">Enter the last name</string>
+    <string name="create_error_saldo">Enter a valid balance</string>
+    <string name="create_waiting_title">Bring the card closer</string>
+    <string name="create_waiting_subtitle">waiting for NFC write…</string>
+    <string name="create_status_writing">WRITING…</string>
+    <string name="create_status_success">Card written successfully</string>
+    <string name="create_button_retry">Write another card</string>
+    <string name="create_button_back_to_form">‹ Edit data</string>
+    <string name="create_tag_before_write">Card detected: press «Write to card» to proceed</string>
+
+    <!-- card format -->
+    <string name="format_header">Format card</string>
+    <string name="format_waiting_title">Bring the card closer</string>
+    <string name="format_waiting_subtitle">waiting for NFC format…</string>
+    <string name="format_status_formatting">FORMATTING…</string>
+    <string name="format_status_success">Card formatted successfully</string>
+
+    <!-- card read (raw dump) -->
+    <string name="read_header">Read card</string>
+    <string name="read_waiting_title">Bring the card closer</string>
+    <string name="read_waiting_subtitle">waiting for NFC read…</string>
+    <string name="read_label_type">Type</string>
+    <string name="read_label_dump">Raw dump</string>
+    <string name="read_sector">SECTOR %02d</string>
+    <string name="read_block">B%d</string>
+    <string name="read_block_locked">— locked —</string>
+    <string name="read_button_write_back">Write edited bytes to card</string>
+    <string name="read_waiting_write_subtitle">waiting for NFC write…</string>
+    <string name="read_status_writing">WRITING…</string>
+    <string name="read_status_write_success">Bytes written successfully</string>
+    <string name="read_error_invalid_hex">Invalid hex in one or more blocks, skipped</string>
+
+    <!-- pos -->
+    <string name="pos_header">POS</string>
+    <string name="pos_subtitle">select the service</string>
+    <string name="pos_button_confirm">Confirm and bring the card closer</string>
+    <string name="pos_waiting_title">Bring the card closer</string>
+    <string name="pos_waiting_subtitle">waiting for NFC read…</string>
+    <string name="pos_status_reading">READING…</string>
+    <string name="pos_error_insufficient_funds">Insufficient balance</string>
+    <string name="pos_error_insufficient_funds_detail">Available balance: %1$s — service: %2$s</string>
+    <string name="pos_success_title">Payment completed</string>
+    <string name="pos_success_client">%1$s %2$s</string>
+    <string name="pos_success_service">%1$s</string>
+    <string name="pos_success_new_balance">New balance: %1$s</string>
+    <string name="pos_button_new_operation">New operation</string>
+    <string name="pos_button_retry">Retry</string>
+    <string name="pos_button_cancel">‹ Back to service list</string>
+
+    <!-- shared NFC status -->
+    <string name="nfc_error_not_mifare">Incompatible card (not MIFARE Classic)</string>
+    <string name="nfc_error_auth">Authentication failed on sector</string>
+    <string name="nfc_error_io">Error communicating with the card</string>
+    <string name="nfc_unavailable">NFC not available on this device</string>
+</resources>

@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <!-- wash / signal ripples above the car -->
+    <path
+        android:pathData="M28,44 A26,26 0 0 1 80,44"
+        android:strokeColor="#2800F6FF"
+        android:strokeWidth="2.4"
+        android:fillColor="#00000000" />
+    <path
+        android:pathData="M36,44 A18,18 0 0 1 72,44"
+        android:strokeColor="#5000F6FF"
+        android:strokeWidth="2.4"
+        android:fillColor="#00000000" />
+    <path
+        android:pathData="M44,44 A10,10 0 0 1 64,44"
+        android:strokeColor="#8000F6FF"
+        android:strokeWidth="2.4"
+        android:fillColor="#00000000" />
+
+    <!-- car body -->
+    <path
+        android:pathData="M24,66 L24,58 L34,58 L40,48 L50,44 L66,44 L76,50 L84,58 L84,66 Z"
+        android:strokeColor="#FF00F6FF"
+        android:strokeWidth="1.6"
+        android:strokeLineJoin="round">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:type="linear"
+                android:startX="26"
+                android:startY="44"
+                android:endX="84"
+                android:endY="66"
+                android:startColor="#FF00F6FF"
+                android:endColor="#FFFF2E9F" />
+        </aapt:attr>
+    </path>
+
+    <!-- wheels -->
+    <path
+        android:pathData="M29,66 a7,7 0 1,0 14,0 a7,7 0 1,0 -14,0"
+        android:fillColor="#FF05010D" />
+    <path
+        android:pathData="M65,66 a7,7 0 1,0 14,0 a7,7 0 1,0 -14,0"
+        android:fillColor="#FF05010D" />
+</vector>
