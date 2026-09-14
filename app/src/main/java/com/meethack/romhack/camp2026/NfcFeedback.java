@@ -7,28 +7,13 @@ import android.os.Vibrator;
 import android.os.VibratorManager;
 import android.view.View;
 
-/** Haptic + visual pulse fired the moment an NFC tag intent is received. */
 public final class NfcFeedback {
 
     private NfcFeedback() {
     }
 
     public static void tagDetected(Context context, View pulseTarget) {
-        vibrate(context);
         pulse(pulseTarget);
-    }
-
-    private static void vibrate(Context context) {
-        Vibrator vibrator;
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            VibratorManager manager = (VibratorManager) context.getSystemService(Context.VIBRATOR_MANAGER_SERVICE);
-            vibrator = manager != null ? manager.getDefaultVibrator() : null;
-        } else {
-            vibrator = (Vibrator) context.getSystemService(Context.VIBRATOR_SERVICE);
-        }
-        if (vibrator != null && vibrator.hasVibrator()) {
-            vibrator.vibrate(VibrationEffect.createOneShot(60, VibrationEffect.DEFAULT_AMPLITUDE));
-        }
     }
 
     public static void pulse(View target) {
@@ -42,7 +27,7 @@ public final class NfcFeedback {
                 .scaleX(1.18f)
                 .scaleY(1.18f)
                 .setDuration(120)
-                .withEndAction(() -> target.animate().scaleX(1f).scaleY(1f).setDuration(180).start())
+                .withEndAction(() -> target.animate().scaleX(1f).scaleY(1f).setDuration(2000).start())
                 .start();
     }
 }

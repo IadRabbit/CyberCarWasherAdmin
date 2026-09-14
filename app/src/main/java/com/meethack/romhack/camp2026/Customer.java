@@ -6,9 +6,9 @@ public class Customer {
     private final String name;
     private final String surname;
     private final Calendar creationDate;
-    private final long amount;
+    private final int amount;
 
-    public Customer(String name, String surname, Calendar creationDate, long amount) {
+    public Customer(String name, String surname, Calendar creationDate, int amount) {
         this.name = name;
         this.surname = surname;
         this.creationDate = creationDate;
@@ -26,7 +26,7 @@ public class Customer {
         return this.creationDate;
     }
 
-    public long getAmount(){
+    public int getAmount(){
         return this.amount;
     }
 }

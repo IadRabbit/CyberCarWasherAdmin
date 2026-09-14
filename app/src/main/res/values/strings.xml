@@ -38,14 +38,17 @@
 
     <!-- card read (raw dump) -->
     <string name="read_header">Read card</string>
+    <string name="read_tab_info">Info</string>
+    <string name="read_tab_data">Data</string>
     <string name="read_waiting_title">Bring the card closer</string>
     <string name="read_waiting_subtitle">waiting for NFC read…</string>
     <string name="read_label_type">Type</string>
     <string name="read_label_dump">Raw dump</string>
+    <string name="read_hint_view_data">Data</string>
     <string name="read_sector">SECTOR %02d</string>
     <string name="read_block">B%d</string>
     <string name="read_block_locked">— locked —</string>
-    <string name="read_button_write_back">Write edited bytes to card</string>
+    <string name="read_button_write_back">Write back</string>
     <string name="read_waiting_write_subtitle">waiting for NFC write…</string>
     <string name="read_status_writing">WRITING…</string>
     <string name="read_status_write_success">Bytes written successfully</string>

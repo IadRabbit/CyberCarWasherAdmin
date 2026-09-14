@@ -30,6 +30,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 
+// This activity is vibecoded 95%
+
 public class CardReadActivity extends AppCompatActivity {
 
     private enum Mode { READ, WRITE }
@@ -39,7 +41,13 @@ public class CardReadActivity extends AppCompatActivity {
     private Mode mode = Mode.READ;
 
     private View groupWaiting;
-    private View groupResult;
+    private View screenBox;
+    private View groupInfo;
+    private View groupData;
+    private TextView tabInfo;
+    private TextView tabData;
+    private TextView buttonHintAction;
+    private boolean onDataTab;
     private TextView textWaitingStatus;
     private TextView textUid;
     private TextView textAtqa;
@@ -64,7 +72,12 @@ public class CardReadActivity extends AppCompatActivity {
         });
 
         groupWaiting = findViewById(R.id.groupWaiting);
-        groupResult = findViewById(R.id.groupResult);
+        screenBox = findViewById(R.id.screenBox);
+        groupInfo = findViewById(R.id.groupInfo);
+        groupData = findViewById(R.id.groupData);
+        tabInfo = findViewById(R.id.tabInfo);
+        tabData = findViewById(R.id.tabData);
+        buttonHintAction = findViewById(R.id.buttonHintAction);
         textWaitingStatus = findViewById(R.id.textWaitingStatus);
         textUid = findViewById(R.id.textUid);
         textAtqa = findViewById(R.id.textAtqa);
@@ -74,7 +87,9 @@ public class CardReadActivity extends AppCompatActivity {
         imageNfcWaves = findViewById(R.id.imageNfcWaves);
         hexKeypad = findViewById(R.id.hexKeypad);
         findViewById(R.id.buttonBack).setOnClickListener(v -> finish());
-        findViewById(R.id.buttonWriteBack).setOnClickListener(v -> onWriteBackClicked());
+        tabInfo.setOnClickListener(v -> showInfo());
+        tabData.setOnClickListener(v -> showData());
+        buttonHintAction.setOnClickListener(v -> onHintActionClicked());
 
         // set up NFC dispatch immediately so the card can be tapped as soon as the screen opens
         this.nfcAdapter = NfcAdapter.getDefaultAdapter(this);
@@ -168,17 +183,17 @@ public class CardReadActivity extends AppCompatActivity {
                 dump = nfcWrapper.dumpSectors();
             } catch (IOException e) {
                 runOnUiThread(() -> {
-                    addLabelRow(getString(R.string.nfc_error_io), R.color.neon_red, false);
-                    showResult();
+                    addLabelRow(getString(R.string.nfc_error_io), R.color.lcd_ink, false);
+                    showData();
                 });
                 return;
             }
 
             runOnUiThread(() -> {
                 for (NfcWrapper.SectorDump sector : dump) {
-                    addLabelRow(getString(R.string.read_sector, sector.sector), R.color.neon_cyan, true);
+                    addLabelRow(getString(R.string.read_sector, sector.sector), R.color.lcd_ink, true);
                     if (!sector.authenticated) {
-                        addLabelRow(getString(R.string.read_block_locked), R.color.text_dim, false);
+                        addLabelRow(getString(R.string.read_block_locked), R.color.lcd_dim, false);
                         continue;
                     }
                     for (int b = 0; b < sector.blocks.length; b++) {
@@ -187,7 +202,7 @@ public class CardReadActivity extends AppCompatActivity {
                         if (block != null) {
                             addBlockRow(label, sector.sector, b, block);
                         } else {
-                            addLabelRow(label + ": " + getString(R.string.read_block_locked), R.color.text_dim, false);
+                            addLabelRow(label + ": " + getString(R.string.read_block_locked), R.color.lcd_dim, false);
                         }
                     }
                 }
@@ -196,10 +211,18 @@ public class CardReadActivity extends AppCompatActivity {
         }).start();
     }
 
+    private void onHintActionClicked() {
+        if (onDataTab) {
+            onWriteBackClicked();
+        } else {
+            showData();
+        }
+    }
+
     private void onWriteBackClicked() {
         mode = Mode.WRITE;
         hideKeypad();
-        groupResult.setVisibility(View.GONE);
+        screenBox.setVisibility(View.GONE);
         groupWaiting.setVisibility(View.VISIBLE);
         textWaitingStatus.setText(getString(R.string.read_waiting_write_subtitle));
         textWaitingStatus.setTextColor(getColor(R.color.text_dim));
@@ -292,14 +315,23 @@ public class CardReadActivity extends AppCompatActivity {
     private void addLabelRow(String text, int colorRes, boolean header) {
         TextView row = new TextView(this);
         row.setText(text);
-        row.setTextColor(getColor(colorRes));
         row.setTypeface(android.graphics.Typeface.MONOSPACE, header ? android.graphics.Typeface.BOLD : android.graphics.Typeface.NORMAL);
         row.setTextSize(12);
         row.setLetterSpacing(header ? 0.08f : 0f);
+        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
         if (header) {
+            params.topMargin = 12;
+        }
+        row.setLayoutParams(params);
+        if (header) {
+            // inverted highlight bar, matching Flipper's filled sector/section headers
             row.setAllCaps(true);
-            row.setPadding(0, 16, 0, 4);
+            row.setBackgroundColor(getColor(R.color.lcd_ink));
+            row.setTextColor(getColor(R.color.lcd_bg));
+            row.setPadding(8, 8, 8, 8);
         } else {
+            row.setTextColor(getColor(colorRes));
             row.setPadding(12, 1, 0, 1);
         }
         dumpContainer.addView(row);
@@ -313,14 +345,14 @@ public class CardReadActivity extends AppCompatActivity {
 
         TextView labelView = new TextView(this);
         labelView.setText(label + ": ");
-        labelView.setTextColor(getColor(R.color.text_dim));
+        labelView.setTextColor(getColor(R.color.lcd_dim));
         labelView.setTypeface(android.graphics.Typeface.MONOSPACE);
         labelView.setTextSize(12);
         row.addView(labelView);
 
         EditText editor = new EditText(this);
         editor.setText(toHex(block));
-        editor.setTextColor(getColor(R.color.neon_green));
+        editor.setTextColor(getColor(R.color.lcd_ink));
         editor.setTypeface(android.graphics.Typeface.MONOSPACE);
         editor.setTextSize(12);
         editor.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_CAP_CHARACTERS);
@@ -359,8 +391,37 @@ public class CardReadActivity extends AppCompatActivity {
     }
 
     private void showResult() {
+        showInfo();
+    }
+
+    private void showInfo() {
+        onDataTab = false;
         groupWaiting.setVisibility(View.GONE);
-        groupResult.setVisibility(View.VISIBLE);
+        screenBox.setVisibility(View.VISIBLE);
+        groupData.setVisibility(View.GONE);
+        groupInfo.setVisibility(View.VISIBLE);
+        buttonHintAction.setText("▸ " + getString(R.string.read_hint_view_data));
+        styleTabs();
+    }
+
+    private void showData() {
+        onDataTab = true;
+        groupWaiting.setVisibility(View.GONE);
+        screenBox.setVisibility(View.VISIBLE);
+        groupInfo.setVisibility(View.GONE);
+        groupData.setVisibility(View.VISIBLE);
+        buttonHintAction.setText("▸ " + getString(R.string.read_button_write_back));
+        styleTabs();
+    }
+
+    /** Active tab gets Flipper's inverted (filled) highlight; inactive stays plain. */
+    private void styleTabs() {
+        TextView active = onDataTab ? tabData : tabInfo;
+        TextView inactive = onDataTab ? tabInfo : tabData;
+        active.setBackgroundColor(getColor(R.color.lcd_ink));
+        active.setTextColor(getColor(R.color.lcd_bg));
+        inactive.setBackgroundColor(getColor(R.color.lcd_bg));
+        inactive.setTextColor(getColor(R.color.lcd_ink));
     }
 
     public void onHexKeyClick(View v) {

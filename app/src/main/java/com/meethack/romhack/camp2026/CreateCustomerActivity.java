@@ -160,10 +160,10 @@ public class CreateCustomerActivity extends AppCompatActivity {
         }
 
         Editable amountE = this.amountText.getText();
-        long amount;
+        int amount;
 
         try {
-            amount = amountE.isEmpty() ? 0 : Long.parseLong(amountE.toString());
+            amount = amountE.isEmpty() ? 0 : Integer.parseInt(amountE.toString());
             if (amount < 0) throw new NumberFormatException();
         } catch (NumberFormatException e) {
             this.amountText.setError(getString(R.string.create_error_saldo));

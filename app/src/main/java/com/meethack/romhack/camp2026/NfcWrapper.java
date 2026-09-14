@@ -4,7 +4,6 @@ import android.nfc.tech.MifareClassic;
 
 import java.io.IOException;
 
-import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 
 import java.util.ArrayList;
@@ -35,6 +34,13 @@ public class NfcWrapper {
             (byte)0xFF, (byte)0xFF, (byte)0xFF, (byte)0xFF, (byte)0xFF, (byte)0xFF
     };
 
+    private static final byte[] defaultValueBlock = new byte[]{
+            (byte)0x00, (byte)0x00, (byte)0x00, (byte)0x00, // Little endian signed 4 byte value
+            (byte)0xFF, (byte)0xFF, (byte)0xFF, (byte)0xFF,  // Inverted signed
+            (byte)0x00, (byte)0x00, (byte)0x00, (byte)0x00, // Little endian signed 4 byte value 2 time
+            (byte)0x49, (byte)0xB6, (byte)0x49, (byte)0xB6 // Adr bytes
+    };
+
     public NfcWrapper(MifareClassic mifareCard, byte[] keyB){
         this.mifareCard = mifareCard;
         this.keyB = keyB;
@@ -57,27 +63,24 @@ public class NfcWrapper {
         }
     }
 
-    /** Raw block-by-block dump, no interpretation of the bytes' meaning. */
     public List<SectorDump> dumpSectors() throws IOException {
         this.mifareCard.connect();
         List<SectorDump> dump = new ArrayList<>();
         int sectorCount = this.mifareCard.getSectorCount();
 
         for (int sector = 0; sector < sectorCount; sector++) {
-            boolean authenticated = this.mifareCard.authenticateSectorWithKeyA(sector, this.keyB)
-                    || this.mifareCard.authenticateSectorWithKeyB(sector, this.keyB);
+            boolean authenticated = this.mifareCard.authenticateSectorWithKeyB(sector, this.keyB);
             int firstBlockOfSector = this.mifareCard.sectorToBlock(sector);
             int blockCount = this.mifareCard.getBlockCountInSector(sector);
             byte[][] blocks = new byte[blockCount][];
 
             if (authenticated) {
                 for (int b = 0; b < blockCount; b++) {
-                    try {
-                        blocks[b] = this.mifareCard.readBlock(firstBlockOfSector + b);
-                    } catch (IOException ignored) {
-                        blocks[b] = null;
-                    }
+                    blocks[b] = this.mifareCard.readBlock(firstBlockOfSector + b);
                 }
+
+                System.arraycopy(keyB, 0, blocks[3], 0, keyB.length);
+                System.arraycopy(keyB, 0, blocks[3], 10, keyB.length);
             }
 
             dump.add(new SectorDump(sector, authenticated, blocks));
@@ -147,22 +150,25 @@ public class NfcWrapper {
     }
 
     private void writeCreationDate(Calendar creationDate) throws IOException {
-        byte[] year = ByteBuffer.allocate(16).putInt(creationDate.get(Calendar.YEAR)).array();
-        byte[] month = ByteBuffer.allocate(16).putInt(creationDate.get(Calendar.MONTH)).array();
-        byte[] day = ByteBuffer.allocate(16).putInt(creationDate.get(Calendar.DAY_OF_MONTH)).array();
         this.mifareCard.authenticateSectorWithKeyB(creationDateSector, this.keyB);
         int firstBlockOfSector = this.mifareCard.sectorToBlock(creationDateSector);
-        this.mifareCard.writeBlock(firstBlockOfSector, year);
-        this.mifareCard.writeBlock(firstBlockOfSector + 1, month);
-        this.mifareCard.writeBlock(firstBlockOfSector + 2, day);
+        this.mifareCard.writeBlock(firstBlockOfSector, defaultValueBlock);
+        this.mifareCard.increment(firstBlockOfSector, creationDate.get(Calendar.YEAR));
+        this.mifareCard.transfer(firstBlockOfSector++);
+        this.mifareCard.writeBlock(firstBlockOfSector, defaultValueBlock);
+        this.mifareCard.increment(firstBlockOfSector, creationDate.get(Calendar.MONTH) + 1);
+        this.mifareCard.transfer(firstBlockOfSector++);
+        this.mifareCard.writeBlock(firstBlockOfSector, defaultValueBlock);
+        this.mifareCard.increment(firstBlockOfSector, creationDate.get(Calendar.DAY_OF_MONTH));
+        this.mifareCard.transfer(firstBlockOfSector);
     }
 
-    private void writeAmount(long amount) throws IOException {
-        byte[] amountB = ByteBuffer.allocate(16).putLong(amount).array();
+    private void writeAmount(int amount) throws IOException {
+        this.mifareCard.authenticateSectorWithKeyA(amountSector, this.keyB);
         this.mifareCard.authenticateSectorWithKeyB(amountSector, this.keyB);
         int firstBlockOfSector = this.mifareCard.sectorToBlock(amountSector);
-        this.mifareCard.writeBlock(firstBlockOfSector, amountB);
-        this.mifareCard.increment(firstBlockOfSector, 1);
+        this.mifareCard.writeBlock(firstBlockOfSector, defaultValueBlock);
+        this.mifareCard.increment(firstBlockOfSector, amount);
         this.mifareCard.transfer(firstBlockOfSector);
     }
 
