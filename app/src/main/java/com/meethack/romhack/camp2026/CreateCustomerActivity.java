@@ -10,6 +10,7 @@ import android.os.Build;
 import android.os.Bundle;
 import android.text.Editable;
 import android.text.TextUtils;
+import android.util.Log;
 import android.view.View;
 import android.widget.EditText;
 import android.widget.ImageView;
@@ -22,12 +23,14 @@ import androidx.core.graphics.Insets;
 import androidx.core.view.ViewCompat;
 import androidx.core.view.WindowInsetsCompat;
 
+import org.json.JSONException;
+
 import java.io.IOException;
 import java.text.SimpleDateFormat;
 import java.util.Calendar;
 import java.util.Date;
-import java.util.Locale;
 import java.util.TimeZone;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 public class CreateCustomerActivity extends AppCompatActivity {
     private static final String TAG = "CreateCustomerActivity";
@@ -178,13 +181,6 @@ public class CreateCustomerActivity extends AppCompatActivity {
         showWaitingState(getString(R.string.create_waiting_subtitle), R.color.text_dim);
     }
 
-    private byte[] fetchKeys() {
-        return new byte[]{
-//                (byte) 0xA1, (byte) 0xA1, (byte) 0xA1,
-//                (byte) 0xA1, (byte) 0xA1, (byte) 0xA1
-                (byte)0xff, (byte)0xff, (byte)0xff, (byte)0xff, (byte)0xff, (byte)0xff
-        };
-    }
     private void writeCard(Tag tag) {
         showWaitingState(getString(R.string.create_status_writing), R.color.neon_cyan);
 
@@ -195,14 +191,20 @@ public class CreateCustomerActivity extends AppCompatActivity {
         }
 
         Customer customerToWrite = this.customer;
+        AtomicBoolean error = new AtomicBoolean(false);
+
         new Thread(() -> {
-            NfcWrapper nfcWrapper = new NfcWrapper(mifare, fetchKeys());
+            NfcWrapper nfcWrapper = new NfcWrapper(mifare, this);
             try {
                 nfcWrapper.saveData(customerToWrite);
-            } catch (IOException e) {
-                throw new RuntimeException(e);
+            } catch (IOException | JSONException e) {
+                error.set(true);
+                Log.i(TAG, String.valueOf(e));
             }
-            runOnUiThread(() -> showWaitingState(getString(R.string.create_status_success), R.color.neon_green));
+            runOnUiThread(() -> showWaitingState(
+                    error.get() ? getString(R.string.nfc_error_writing_customer_data) : getString(R.string.create_status_success),
+                    error.get() ? R.color.neon_red : R.color.neon_green)
+            );
         }).start();
     }
 

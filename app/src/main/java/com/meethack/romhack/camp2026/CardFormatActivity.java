@@ -17,6 +17,8 @@ import androidx.core.graphics.Insets;
 import androidx.core.view.ViewCompat;
 import androidx.core.view.WindowInsetsCompat;
 
+import org.json.JSONException;
+
 import java.io.IOException;
 
 public class CardFormatActivity extends AppCompatActivity {
@@ -110,10 +112,10 @@ public class CardFormatActivity extends AppCompatActivity {
         }
 
         new Thread(() -> {
-            NfcWrapper nfcWrapper = new NfcWrapper(mifare, fetchKeys());
+            NfcWrapper nfcWrapper = new NfcWrapper(mifare, this);
             try {
                 nfcWrapper.format();
-            } catch (IOException e) {
+            } catch (IOException | JSONException e) {
                 runOnUiThread(() -> showStatus(getString(R.string.nfc_error_io), R.color.neon_red));
                 return;
             }

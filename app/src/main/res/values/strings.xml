@@ -76,4 +76,5 @@
     <string name="nfc_error_auth">Authentication failed on sector</string>
     <string name="nfc_error_io">Error communicating with the card</string>
     <string name="nfc_unavailable">NFC not available on this device</string>
+    <string name="nfc_error_writing_customer_data">Failed to communicate with the card</string>
 </resources>

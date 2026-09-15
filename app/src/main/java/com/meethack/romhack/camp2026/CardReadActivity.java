@@ -25,6 +25,8 @@ import androidx.core.graphics.Insets;
 import androidx.core.view.ViewCompat;
 import androidx.core.view.WindowInsetsCompat;
 
+import org.json.JSONException;
+
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
@@ -145,12 +147,6 @@ public class CardReadActivity extends AppCompatActivity {
         return intent.getParcelableExtra(NfcAdapter.EXTRA_TAG);
     }
 
-    private byte[] fetchKeys() {
-        return new byte[]{
-                (byte) 0xff, (byte) 0xff, (byte) 0xff, (byte) 0xff, (byte) 0xff, (byte) 0xff
-        };
-    }
-
     private void readCard(Tag tag) {
         textUid.setText(toHex(tag.getId()));
 
@@ -177,11 +173,11 @@ public class CardReadActivity extends AppCompatActivity {
         textType.setText(mifareTypeLabel(mifare));
 
         new Thread(() -> {
-            NfcWrapper nfcWrapper = new NfcWrapper(mifare, fetchKeys());
+            NfcWrapper nfcWrapper = new NfcWrapper(mifare, this);
             List<NfcWrapper.SectorDump> dump;
             try {
                 dump = nfcWrapper.dumpSectors();
-            } catch (IOException e) {
+            } catch (IOException | JSONException e) {
                 runOnUiThread(() -> {
                     addLabelRow(getString(R.string.nfc_error_io), R.color.lcd_ink, false);
                     showData();
@@ -254,7 +250,7 @@ public class CardReadActivity extends AppCompatActivity {
 
         boolean finalHasInvalidHex = hasInvalidHex;
         new Thread(() -> {
-            NfcWrapper nfcWrapper = new NfcWrapper(mifare, fetchKeys());
+            NfcWrapper nfcWrapper = new NfcWrapper(mifare, this);
             try {
                 nfcWrapper.writeRawBlocks(edits);
             } catch (IOException e) {

@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- TODO: set the real header name/value before shipping -->
+    <string name="keys_endpoint" translatable="false">https://cyber-car-washer-alb-1288079676.eu-west-1.elb.amazonaws.com/</string>
+    <string name="keys_header_name" translatable="false">X-Api-Key</string>
+    <string name="keys_header_value" translatable="false">TODO</string>
+</resources>
