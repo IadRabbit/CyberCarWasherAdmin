@@ -9,6 +9,7 @@
     <string name="home_button_pos">POS</string>
     <string name="home_button_format">Format card</string>
     <string name="home_button_read">Read card</string>
+    <string name="home_button_recharge">Recharge card</string>
     <string name="home_footer">W MEETHACK</string>
 
     <!-- create customer -->
@@ -53,6 +54,16 @@
     <string name="read_status_writing">WRITING…</string>
     <string name="read_status_write_success">Bytes written successfully</string>
     <string name="read_error_invalid_hex">Invalid hex in one or more blocks, skipped</string>
+
+    <!-- recharge -->
+    <string name="recharge_header">Recharge card</string>
+    <string name="recharge_label_amount">Amount to load (€)</string>
+    <string name="recharge_error_amount">Enter a valid amount</string>
+    <string name="recharge_button_write">Write to card</string>
+    <string name="recharge_waiting_title">Bring the card closer</string>
+    <string name="recharge_waiting_subtitle">waiting for NFC write…</string>
+    <string name="recharge_status_writing">WRITING…</string>
+    <string name="recharge_status_success">Card recharged successfully</string>
 
     <!-- pos -->
     <string name="pos_header">POS</string>

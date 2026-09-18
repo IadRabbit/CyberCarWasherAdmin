@@ -3,5 +3,5 @@
     <!-- TODO: set the real header name/value before shipping -->
     <string name="keys_endpoint" translatable="false">https://cyber-car-washer-alb-1288079676.eu-west-1.elb.amazonaws.com/</string>
     <string name="keys_header_name" translatable="false">X-Api-Key</string>
-    <string name="keys_header_value" translatable="false">TODO</string>
+    <string name="keys_header_value" translatable="false">1067d23605d6bd05aefa6ad0d0803b0a188ac33cfce932334d6ade20d6af02f07203382d27f5ad126ade76c0837e1319</string>
 </resources>

@@ -30,5 +30,7 @@ public class MainActivity extends AppCompatActivity {
                 startActivity(new Intent(this, CardFormatActivity.class)));
         findViewById(R.id.buttonRead).setOnClickListener(v ->
                 startActivity(new Intent(this, CardReadActivity.class)));
+        findViewById(R.id.buttonRecharge).setOnClickListener(v ->
+                startActivity(new Intent(this, RechargeActivity.class)));
     }
 }

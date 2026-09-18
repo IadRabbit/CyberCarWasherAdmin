@@ -38,6 +38,10 @@
         <activity
             android:name=".CardReadActivity"
             android:exported="false" />
+        <activity
+            android:name=".RechargeActivity"
+            android:exported="false"
+            android:windowSoftInputMode="adjustResize" />
     </application>
 
 </manifest>

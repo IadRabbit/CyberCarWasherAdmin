@@ -10,6 +10,7 @@ import android.nfc.tech.NfcA;
 import android.os.Build;
 import android.os.Bundle;
 import android.text.InputType;
+import android.util.Log;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.inputmethod.InputMethodManager;
@@ -35,6 +36,8 @@ import java.util.Locale;
 // This activity is vibecoded 95%
 
 public class CardReadActivity extends AppCompatActivity {
+    private static final String TAG = "CardReadActivity";
+
 
     private enum Mode { READ, WRITE }
 
@@ -177,9 +180,10 @@ public class CardReadActivity extends AppCompatActivity {
             List<NfcWrapper.SectorDump> dump;
             try {
                 dump = nfcWrapper.dumpSectors();
-            } catch (IOException | JSONException e) {
+            } catch (IOException | JSONException | SecurityException e) {
                 runOnUiThread(() -> {
                     addLabelRow(getString(R.string.nfc_error_io), R.color.lcd_ink, false);
+                    Log.e(TAG, String.valueOf(e));
                     showData();
                 });
                 return;
@@ -254,6 +258,8 @@ public class CardReadActivity extends AppCompatActivity {
             try {
                 nfcWrapper.writeRawBlocks(edits);
             } catch (IOException e) {
+                Log.e(TAG, String.valueOf(e));
+
                 runOnUiThread(() -> {
                     textWaitingStatus.setText(getString(R.string.nfc_error_io));
                     textWaitingStatus.setTextColor(getColor(R.color.neon_red));

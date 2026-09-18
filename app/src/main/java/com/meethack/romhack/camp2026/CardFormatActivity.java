@@ -115,7 +115,7 @@ public class CardFormatActivity extends AppCompatActivity {
             NfcWrapper nfcWrapper = new NfcWrapper(mifare, this);
             try {
                 nfcWrapper.format();
-            } catch (IOException | JSONException e) {
+            } catch (IOException | JSONException | SecurityException e) {
                 runOnUiThread(() -> showStatus(getString(R.string.nfc_error_io), R.color.neon_red));
                 return;
             }
