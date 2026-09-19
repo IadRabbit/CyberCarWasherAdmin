@@ -127,8 +127,7 @@ public class CardActivity extends NfcActivity {
             try {
                 dump = nfcWrapper.dumpSectors();
             } catch (IOException e) {
-                runOnUiThread(() -> {
-                    stopNfcAnimation();
+                onNfcResult(() -> {
                     addLabelRow(getString(R.string.nfc_error_io), R.color.lcd_ink, false);
                     Log.e(TAG, String.valueOf(e));
                     showData();
@@ -137,16 +136,14 @@ public class CardActivity extends NfcActivity {
             }
             catch (FailedToFetchKeys e){
                 Log.e(TAG, "Cannot fetch keys for card", e);
-                runOnUiThread(() -> {
-                    stopNfcAnimation();
+                onNfcResult(() -> {
                     addLabelRow(getString(R.string.nfc_error_fetch_keys), R.color.lcd_ink, false);
                     showData();
                 });
                 return;
             }
 
-            runOnUiThread(() -> {
-                stopNfcAnimation();
+            onNfcResult(() -> {
                 for (NfcWrapper.SectorDump sector : dump) {
                     addLabelRow(getString(R.string.read_sector, sector.sector), R.color.lcd_ink, true);
                     if (!sector.authenticated) {
@@ -218,8 +215,7 @@ public class CardActivity extends NfcActivity {
             } catch (IOException e) {
                 Log.e(TAG, String.valueOf(e));
 
-                runOnUiThread(() -> {
-                    stopNfcAnimation();
+                onNfcResult(() -> {
                     textWaitingStatus.setText(getString(R.string.nfc_error_io));
                     textWaitingStatus.setTextColor(getColor(R.color.neon_red));
                     mode = Mode.READ;
@@ -228,8 +224,7 @@ public class CardActivity extends NfcActivity {
             } catch (FailedToFetchKeys e) {
                 Log.e(TAG, "Cannot fetch keys for card", e);
 
-                runOnUiThread(() -> {
-                    stopNfcAnimation();
+                onNfcResult(() -> {
                     textWaitingStatus.setText(getString(R.string.nfc_error_fetch_keys));
                     textWaitingStatus.setTextColor(getColor(R.color.neon_red));
                     mode = Mode.READ;
@@ -237,8 +232,7 @@ public class CardActivity extends NfcActivity {
                 return;
             }
 
-            runOnUiThread(() -> {
-                stopNfcAnimation();
+            onNfcResult(() -> {
                 String status = getString(R.string.read_status_write_success);
                 int colorRes = R.color.neon_green;
                 if (finalHasInvalidHex) {

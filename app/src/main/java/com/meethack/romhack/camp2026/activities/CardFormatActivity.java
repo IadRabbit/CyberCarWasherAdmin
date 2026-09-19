@@ -59,21 +59,18 @@ public class CardFormatActivity extends NfcActivity {
             try {
                 nfcWrapper.format();
             } catch (IOException | SecurityException e) {
-                runOnUiThread(() -> {
-                    stopNfcAnimation();
+                onNfcResult(() -> {
                     showStatus(getString(R.string.nfc_error_io), R.color.neon_red);
                 });
                 return;
             } catch (FailedToFetchKeys e) {
                 Log.e(TAG, "Cannot fetch keys for card", e);
-                runOnUiThread(() -> {
-                    stopNfcAnimation();
+                onNfcResult(() -> {
                     showStatus(getString(R.string.nfc_error_fetch_keys), R.color.neon_red);
                 });
                 return;
             }
-            runOnUiThread(() -> {
-                stopNfcAnimation();
+            onNfcResult(() -> {
                 showStatus(getString(R.string.format_status_success), R.color.neon_green);
             });
         }).start();

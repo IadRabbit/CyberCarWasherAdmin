@@ -138,14 +138,12 @@ public class CreateCustomerActivity extends NfcActivity {
             }
             catch (FailedToFetchKeys e){
                 Log.e(TAG, "Cannot fetch keys for card", e);
-                runOnUiThread(() -> {
-                    stopNfcAnimation();
+                onNfcResult(() -> {
                     showWaitingState(getString(R.string.nfc_error_fetch_keys), R.color.neon_red);
                 });
                 return;
             }
-            runOnUiThread(() -> {
-                stopNfcAnimation();
+            onNfcResult(() -> {
                 showWaitingState(
                         error.get() ? getString(R.string.nfc_error_writing_customer_data) : getString(R.string.create_status_success),
                         error.get() ? R.color.neon_red : R.color.neon_green);

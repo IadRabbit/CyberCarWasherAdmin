@@ -17,6 +17,7 @@ import androidx.core.view.ViewCompat;
 import androidx.core.view.WindowInsetsCompat;
 
 import com.meethack.romhack.camp2026.exceptions.FailedToFetchKeys;
+import com.meethack.romhack.camp2026.exceptions.InvalidValueBlock;
 import com.meethack.romhack.camp2026.wrappers.NfcWrapper;
 import com.meethack.romhack.camp2026.R;
 import com.meethack.romhack.camp2026.assets.Money;
@@ -156,30 +157,32 @@ public class PosActivity extends NfcActivity {
             try {
                 int balance = nfcWrapper.readAmount();
                 if (balance < service.price) {
-                    runOnUiThread(() -> {
-                        stopNfcAnimation();
+                    onNfcResult(() -> {
                         showResult(false, service, Money.format(balance));
                     });
                     return;
                 }
                 nfcWrapper.buy(service.price);
                 int newBalance = balance - service.price;
-                runOnUiThread(() -> {
-                    stopNfcAnimation();
+                onNfcResult(() -> {
                     showResult(true, service, Money.format(newBalance));
                 });
             } catch (IOException e) {
                 Log.e(TAG, "NFC read/write error", e);
-                runOnUiThread(() -> {
-                    stopNfcAnimation();
+                onNfcResult(() -> {
                     showWaitingState(getString(R.string.nfc_error_io), R.color.neon_red);
                 });
             }
             catch (FailedToFetchKeys e){
                 Log.e(TAG, "Cannot fetch keys for card", e);
-                runOnUiThread(() -> {
-                    stopNfcAnimation();
+                onNfcResult(() -> {
                     showWaitingState(getString(R.string.nfc_error_fetch_keys), R.color.neon_red);
+                });
+            }
+            catch (InvalidValueBlock e){
+                Log.e(TAG, e.toString());
+                onNfcResult(() -> {
+                    showWaitingState(getString(R.string.pos_error_tampered_block), R.color.neon_red);
                 });
             }
         }).start();

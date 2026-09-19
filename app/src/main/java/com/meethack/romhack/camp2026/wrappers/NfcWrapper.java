@@ -4,6 +4,7 @@ import android.content.Context;
 import android.nfc.tech.MifareClassic;
 
 import com.meethack.romhack.camp2026.assets.Customer;
+import com.meethack.romhack.camp2026.exceptions.InvalidValueBlock;
 
 import java.io.IOException;
 
@@ -265,6 +266,11 @@ public class NfcWrapper {
         this.mifareCard.connect();
         this.auth(amountSector);
         int firstBlockOfSector = this.mifareCard.sectorToBlock(amountSector);
+
+        if (!this.isValidValueBlock(firstBlockOfSector)){
+            throw new InvalidValueBlock("This block looks tampered");
+        }
+
         this.mifareCard.writeBlock(firstBlockOfSector + 3, createWritableSectorTrailer());
         this.mifareCard.increment(firstBlockOfSector, amount);
         this.mifareCard.transfer(firstBlockOfSector);
@@ -276,6 +282,11 @@ public class NfcWrapper {
         this.mifareCard.connect();
         this.auth(amountSector);
         int firstBlockOfSector = this.mifareCard.sectorToBlock(amountSector);
+
+        if (!this.isValidValueBlock(firstBlockOfSector)){
+            throw new InvalidValueBlock("This block looks tampered");
+        }
+
         this.mifareCard.writeBlock(firstBlockOfSector + 3, createWritableSectorTrailer());
         this.mifareCard.decrement(firstBlockOfSector, amount);
         this.mifareCard.transfer(firstBlockOfSector);
@@ -287,6 +298,11 @@ public class NfcWrapper {
         this.mifareCard.connect();
         this.auth(amountSector);
         int firstBlockOfSector = this.mifareCard.sectorToBlock(amountSector);
+
+        if (!this.isValidValueBlock(firstBlockOfSector)){
+            throw new InvalidValueBlock("This block looks tampered");
+        }
+
         byte[] block = this.mifareCard.readBlock(firstBlockOfSector);
         this.mifareCard.close();
         return ByteBuffer.wrap(block, 0, 4).order(ByteOrder.LITTLE_ENDIAN).getInt();
@@ -312,6 +328,25 @@ public class NfcWrapper {
             byte[] chunk = Arrays.copyOfRange(nameB, 16 * a, 16 * a + 16);
             this.mifareCard.writeBlock(firstBlockOfSector + a, chunk);
         }
+    }
+
+    private boolean isValidValueBlock(int blockIndex) throws IOException {
+        byte[] block = this.mifareCard.readBlock(blockIndex);
+        if (block.length < 16) {
+            throw new IOException("Block read returned fewer than 16 bytes");
+        }
+
+        return (~block[0] == block[4]) &&
+                (~block[1] == block[5]) &&
+                (~block[2] == block[6]) &&
+                (~block[3] == block[7]) &&
+                (block[0] == block[8]) &&
+                (block[1] == block[9]) &&
+                (block[2] == block[10]) &&
+                (block[3] == block[11]) &&
+                (~block[12] == block[13]) &&
+                (~block[14] == block[15]) &&
+                (block[12] == block[14]);
     }
 
     private void writeCreationDate(Calendar creationDate) throws IOException {

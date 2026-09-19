@@ -80,6 +80,7 @@
     <string name="pos_button_new_operation">New operation</string>
     <string name="pos_button_retry">Retry</string>
     <string name="pos_button_cancel">‹ Back to service list</string>
+    <string name="pos_error_tampered_block">MMH are you trying to scam?</string>
 
     <!-- shared NFC status -->
     <string name="nfc_error_not_mifare">Incompatible card (not MIFARE Classic)</string>

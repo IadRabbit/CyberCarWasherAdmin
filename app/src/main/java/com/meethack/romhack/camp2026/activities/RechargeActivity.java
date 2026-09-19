@@ -17,6 +17,7 @@ import androidx.core.view.ViewCompat;
 import androidx.core.view.WindowInsetsCompat;
 
 import com.meethack.romhack.camp2026.exceptions.FailedToFetchKeys;
+import com.meethack.romhack.camp2026.exceptions.InvalidValueBlock;
 import com.meethack.romhack.camp2026.wrappers.NfcWrapper;
 import com.meethack.romhack.camp2026.R;
 
@@ -119,14 +120,19 @@ public class RechargeActivity extends NfcActivity {
             }
             catch (FailedToFetchKeys e){
                 Log.e(TAG, "Cannot fetch keys for card", e);
-                runOnUiThread(() -> {
-                    stopNfcAnimation();
+                onNfcResult(() -> {
                     showWaitingState(getString(R.string.nfc_error_fetch_keys), R.color.neon_red);
                 });
                 return;
             }
-            runOnUiThread(() -> {
-                stopNfcAnimation();
+            catch (InvalidValueBlock e){
+                Log.e(TAG, e.toString());
+                onNfcResult(() -> {
+                    showWaitingState(getString(R.string.pos_error_tampered_block), R.color.neon_red);
+                });
+                return;
+            }
+            onNfcResult(() -> {
                 showWaitingState(
                         error.get() ? getString(R.string.nfc_error_writing_customer_data) : getString(R.string.recharge_status_success),
                         error.get() ? R.color.neon_red : R.color.neon_green);

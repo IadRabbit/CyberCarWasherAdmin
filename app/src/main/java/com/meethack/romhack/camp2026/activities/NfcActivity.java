@@ -115,6 +115,18 @@ public abstract class NfcActivity extends AppCompatActivity {
         }
     }
 
+    /**
+     * Stops the pulse animation and runs {@code action} on the UI thread. Every background NFC
+     * operation's terminal branch (success or failure) needs both together, so this replaces the
+     * {@code runOnUiThread(() -> { stopNfcAnimation(); ... })} pairing repeated at every call site.
+     */
+    protected void onNfcResult(Runnable action) {
+        runOnUiThread(() -> {
+            stopNfcAnimation();
+            action.run();
+        });
+    }
+
     @Override
     protected void onNewIntent(Intent intent) {
         super.onNewIntent(intent);
