@@ -16,12 +16,11 @@
     <string name="create_header">New customer</string>
     <string name="create_label_nome">First name</string>
     <string name="create_label_cognome">Last name</string>
-    <string name="create_label_saldo">Initial balance (€)</string>
+    <string name="create_label_saldo_default">The card will be issued with a default balance of €%1$d</string>
     <string name="create_label_data">Creation date</string>
     <string name="create_button_write">Write to card</string>
     <string name="create_error_nome">Enter the first name</string>
     <string name="create_error_cognome">Enter the last name</string>
-    <string name="create_error_saldo">Enter a valid balance</string>
     <string name="create_waiting_title">Bring the card closer</string>
     <string name="create_waiting_subtitle">waiting for NFC write…</string>
     <string name="create_status_writing">WRITING…</string>
@@ -86,6 +85,7 @@
     <string name="nfc_error_not_mifare">Incompatible card (not MIFARE Classic)</string>
     <string name="nfc_error_auth">Authentication failed on sector</string>
     <string name="nfc_error_io">Error communicating with the card</string>
+    <string name="nfc_error_fetch_keys">Error fetching keys for the card</string>
     <string name="nfc_unavailable">NFC not available on this device</string>
     <string name="nfc_error_writing_customer_data">Failed to communicate with the card</string>
 </resources>

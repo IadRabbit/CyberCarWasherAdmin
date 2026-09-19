@@ -6,7 +6,7 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="@drawable/bg_app_gradient"
-    tools:context=".RechargeActivity">
+    tools:context=".activities.RechargeActivity">
 
     <TextView
         android:id="@+id/buttonBack"

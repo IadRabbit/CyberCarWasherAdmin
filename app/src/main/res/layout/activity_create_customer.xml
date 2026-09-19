@@ -6,7 +6,7 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="@drawable/bg_app_gradient"
-    tools:context=".CreateCustomerActivity">
+    tools:context=".activities.CreateCustomerActivity">
 
     <TextView
         android:id="@+id/buttonBack"
@@ -128,33 +128,15 @@
                     android:background="@drawable/dashed_line" />
 
                 <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:fontFamily="monospace"
-                    android:letterSpacing="0.1"
-                    android:text="@string/create_label_saldo"
-                    android:textAllCaps="true"
-                    android:textColor="@color/text_dim"
-                    android:textSize="11sp" />
-
-                <EditText
-                    android:id="@+id/editSaldo"
+                    android:id="@+id/textSaldoDefault"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="4dp"
                     android:layout_marginBottom="16dp"
-                    android:background="@null"
-                    android:fontFamily="sans-serif-black"
-                    android:hint="0"
-                    android:inputType="number"
-                    android:shadowColor="@color/neon_green"
-                    android:shadowDx="0"
-                    android:shadowDy="0"
-                    android:shadowRadius="10"
+                    android:fontFamily="sans-serif-medium"
                     android:textColor="@color/neon_green"
-                    android:textColorHint="@color/text_faint"
-                    android:textCursorDrawable="@null"
-                    android:textSize="26sp" />
+                    android:textSize="14sp"
+                    tools:text="The card will be issued with a default balance of €10" />
 
                 <View
                     android:layout_width="match_parent"

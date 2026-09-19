@@ -1,4 +1,4 @@
-package com.meethack.romhack.camp2026;
+package com.meethack.romhack.camp2026.assets;
 
 import java.util.Arrays;
 import java.util.List;
@@ -11,6 +11,7 @@ public final class Services {
             new Service("Full Wash", 9),
             new Service("Premium Wash + Wax", 14),
             new Service("Interior + Exterior Full", 19),
+            new Service("Car Happy Ending", 100),
             new Service("Became a transformer cyberpunk77 ultra Ferrari car", 5500)
     );
 

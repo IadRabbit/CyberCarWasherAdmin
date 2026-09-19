@@ -1,57 +1,49 @@
-package com.meethack.romhack.camp2026;
+package com.meethack.romhack.camp2026.activities;
 
-import android.app.PendingIntent;
-import android.content.Intent;
-import android.content.IntentFilter;
-import android.nfc.NfcAdapter;
 import android.nfc.Tag;
 import android.nfc.tech.MifareClassic;
-import android.os.Build;
 import android.os.Bundle;
-import android.text.Editable;
 import android.text.TextUtils;
 import android.util.Log;
 import android.view.View;
 import android.widget.EditText;
-import android.widget.ImageView;
 import android.widget.TextView;
 
 import androidx.activity.EdgeToEdge;
 import androidx.activity.OnBackPressedCallback;
-import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.graphics.Insets;
 import androidx.core.view.ViewCompat;
 import androidx.core.view.WindowInsetsCompat;
 
-import org.json.JSONException;
+import com.meethack.romhack.camp2026.assets.Customer;
+import com.meethack.romhack.camp2026.exceptions.FailedToFetchKeys;
+import com.meethack.romhack.camp2026.wrappers.NfcWrapper;
+import com.meethack.romhack.camp2026.R;
 
 import java.io.IOException;
 import java.text.SimpleDateFormat;
 import java.util.Calendar;
 import java.util.Date;
+import java.util.Locale;
 import java.util.TimeZone;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-public class CreateCustomerActivity extends AppCompatActivity {
+public class CreateCustomerActivity extends NfcActivity {
     private static final String TAG = "CreateCustomerActivity";
     private static final String timezone = "Europe/Rome";
-    private static final SimpleDateFormat viewDateFormat = new SimpleDateFormat("dd/MM/yyyy");
+    private static final SimpleDateFormat viewDateFormat = new SimpleDateFormat("dd/MM/yyyy", Locale.ITALY);
     private static final long FORM_WARNING_DURATION_MS = 3000;
-
-    private NfcAdapter nfcAdapter;
-    private PendingIntent nfcPendingIntent;
+    private static final int DEFAULT_AMOUNT = 18;
 
     private View groupForm;
     private View groupWaiting;
     private TextView textWaitingTitle;
     private TextView textWaitingStatus;
     private TextView textFormWarning;
-    private ImageView imageNfcWaves;
     private final Runnable hideFormWarning = () -> textFormWarning.setVisibility(View.GONE);
 
     private EditText nameText;
     private EditText surnameText;
-    private EditText amountText;
     private Customer customer;
 
 
@@ -82,56 +74,17 @@ public class CreateCustomerActivity extends AppCompatActivity {
         textWaitingTitle = findViewById(R.id.textWaitingTitle);
         textWaitingStatus = findViewById(R.id.textWaitingStatus);
         textFormWarning = findViewById(R.id.textFormWarning);
-        imageNfcWaves = findViewById(R.id.imageNfcWaves);
         ((TextView) findViewById(R.id.textDataValue)).setText(viewDateFormat.format(new Date()));
         this.nameText = findViewById(R.id.editNome);
         this.surnameText = findViewById(R.id.editCognome);
-        this.amountText = findViewById(R.id.editSaldo);
+        ((TextView) findViewById(R.id.textSaldoDefault)).setText(getString(R.string.create_label_saldo_default, DEFAULT_AMOUNT));
         findViewById(R.id.buttonBack).setOnClickListener(v -> finish());
         findViewById(R.id.buttonBackToForm).setOnClickListener(v -> showFormState());
         findViewById(R.id.buttonWrite).setOnClickListener(v -> onWriteClicked());
-
-        // set up NFC dispatch immediately so a tag tapped while still filling the form
-        // is caught by this activity instead of being ignored by the system
-        this.nfcAdapter = NfcAdapter.getDefaultAdapter(this);
-        Intent nfcIntent = new Intent(this, getClass());
-        nfcIntent.addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP);
-        this.nfcPendingIntent = PendingIntent.getActivity(
-                this, 0, nfcIntent,
-                PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_MUTABLE
-        );
     }
 
     @Override
-    protected void onResume() {
-        super.onResume();
-        if (this.nfcAdapter != null) {
-            this.nfcAdapter.enableForegroundDispatch(
-                    this,
-                    nfcPendingIntent,
-                    new IntentFilter[]{new IntentFilter(NfcAdapter.ACTION_TAG_DISCOVERED)},
-                    new String[][]{{MifareClassic.class.getName()}}
-            );
-        }
-    }
-
-    @Override
-    protected void onPause() {
-        super.onPause();
-        if (nfcAdapter != null) {
-            nfcAdapter.disableForegroundDispatch(this);
-        }
-    }
-
-    @Override
-    protected void onNewIntent(Intent intent) {
-        super.onNewIntent(intent);
-        NfcFeedback.tagDetected(this, imageNfcWaves);
-        Tag tag = extractTag(intent);
-        if (tag == null) {
-            return;
-        }
-
+    protected void onTagDiscovered(Tag tag) {
         // form is still showing: user tapped a tag before pressing the write button
         if (groupWaiting.getVisibility() != View.VISIBLE) {
             showFormWarning();
@@ -139,14 +92,6 @@ public class CreateCustomerActivity extends AppCompatActivity {
         }
 
         writeCard(tag);
-    }
-
-    @SuppressWarnings("deprecation")
-    private static Tag extractTag(Intent intent) {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            return intent.getParcelableExtra(NfcAdapter.EXTRA_TAG, Tag.class);
-        }
-        return intent.getParcelableExtra(NfcAdapter.EXTRA_TAG);
     }
 
     private void onWriteClicked() {
@@ -162,20 +107,9 @@ public class CreateCustomerActivity extends AppCompatActivity {
             return;
         }
 
-        Editable amountE = this.amountText.getText();
-        int amount;
-
-        try {
-            amount = amountE.isEmpty() ? 0 : Integer.parseInt(amountE.toString());
-            if (amount < 0) throw new NumberFormatException();
-        } catch (NumberFormatException e) {
-            this.amountText.setError(getString(R.string.create_error_saldo));
-            return;
-        }
-
         Calendar creationDate = Calendar.getInstance(TimeZone.getTimeZone(timezone));
         creationDate.setTime(new Date());
-        this.customer = new Customer(name, surname, creationDate, amount);
+        this.customer = new Customer(name, surname, creationDate, DEFAULT_AMOUNT);
 
         hideFormWarning();
         showWaitingState(getString(R.string.create_waiting_subtitle), R.color.text_dim);
@@ -193,18 +127,29 @@ public class CreateCustomerActivity extends AppCompatActivity {
         Customer customerToWrite = this.customer;
         AtomicBoolean error = new AtomicBoolean(false);
 
+        startNfcAnimation();
         new Thread(() -> {
             NfcWrapper nfcWrapper = new NfcWrapper(mifare, this);
             try {
                 nfcWrapper.saveData(customerToWrite);
-            } catch (IOException | JSONException e) {
+            } catch (IOException e) {
                 error.set(true);
                 Log.i(TAG, String.valueOf(e));
             }
-            runOnUiThread(() -> showWaitingState(
-                    error.get() ? getString(R.string.nfc_error_writing_customer_data) : getString(R.string.create_status_success),
-                    error.get() ? R.color.neon_red : R.color.neon_green)
-            );
+            catch (FailedToFetchKeys e){
+                Log.e(TAG, "Cannot fetch keys for card", e);
+                runOnUiThread(() -> {
+                    stopNfcAnimation();
+                    showWaitingState(getString(R.string.nfc_error_fetch_keys), R.color.neon_red);
+                });
+                return;
+            }
+            runOnUiThread(() -> {
+                stopNfcAnimation();
+                showWaitingState(
+                        error.get() ? getString(R.string.nfc_error_writing_customer_data) : getString(R.string.create_status_success),
+                        error.get() ? R.color.neon_red : R.color.neon_green);
+            });
         }).start();
     }
 

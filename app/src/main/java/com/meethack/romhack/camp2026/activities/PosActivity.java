@@ -1,12 +1,7 @@
-package com.meethack.romhack.camp2026;
+package com.meethack.romhack.camp2026.activities;
 
-import android.app.PendingIntent;
-import android.content.Intent;
-import android.content.IntentFilter;
-import android.nfc.NfcAdapter;
 import android.nfc.Tag;
 import android.nfc.tech.MifareClassic;
-import android.os.Build;
 import android.os.Bundle;
 import android.util.Log;
 import android.util.TypedValue;
@@ -17,19 +12,21 @@ import android.widget.TextView;
 
 import androidx.activity.EdgeToEdge;
 import androidx.activity.OnBackPressedCallback;
-import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.graphics.Insets;
 import androidx.core.view.ViewCompat;
 import androidx.core.view.WindowInsetsCompat;
 
+import com.meethack.romhack.camp2026.exceptions.FailedToFetchKeys;
+import com.meethack.romhack.camp2026.wrappers.NfcWrapper;
+import com.meethack.romhack.camp2026.R;
+import com.meethack.romhack.camp2026.assets.Money;
+import com.meethack.romhack.camp2026.assets.Services;
+
 import java.io.IOException;
 
 /** Service selection + charge to a MIFARE Classic card via NFC. */
-public class PosActivity extends AppCompatActivity {
+public class PosActivity extends NfcActivity {
     private static final String TAG = "PosActivity";
-
-    private NfcAdapter nfcAdapter;
-    private PendingIntent nfcPendingIntent;
 
     private View groupSelection;
     private View groupWaiting;
@@ -41,7 +38,6 @@ public class PosActivity extends AppCompatActivity {
     private TextView textResultBalance;
     private TextView buttonResultPrimary;
     private View buttonConfirm;
-    private View imageNfcWaves;
 
     private Services.Service selectedService;
     private TextView selectedRow;
@@ -79,7 +75,6 @@ public class PosActivity extends AppCompatActivity {
         textResultBalance = findViewById(R.id.textResultBalance);
         buttonResultPrimary = findViewById(R.id.buttonResultPrimary);
         buttonConfirm = findViewById(R.id.buttonConfirm);
-        imageNfcWaves = findViewById(R.id.imageNfcWaves);
 
         findViewById(R.id.buttonBack).setOnClickListener(v -> finish());
         findViewById(R.id.buttonBackToSelection).setOnClickListener(v -> showSelectionState());
@@ -87,54 +82,13 @@ public class PosActivity extends AppCompatActivity {
         buttonResultPrimary.setOnClickListener(v -> onResultPrimaryClicked());
 
         populateServices();
-
-        nfcAdapter = NfcAdapter.getDefaultAdapter(this);
-
-        Intent intent = new Intent(this, getClass());
-        intent.addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP);
-        nfcPendingIntent = PendingIntent.getActivity(
-                this, 0, intent,
-                PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_MUTABLE
-        );
     }
 
     @Override
-    protected void onResume() {
-        super.onResume();
-        if (nfcAdapter != null) {
-            nfcAdapter.enableForegroundDispatch(
-                    this,
-                    nfcPendingIntent,
-                    new IntentFilter[]{new IntentFilter(NfcAdapter.ACTION_TAG_DISCOVERED)},
-                    new String[][]{{MifareClassic.class.getName()}}
-            );
-        }
-    }
-
-    @Override
-    protected void onPause() {
-        super.onPause();
-        if (nfcAdapter != null) {
-            nfcAdapter.disableForegroundDispatch(this);
-        }
-    }
-
-    @Override
-    protected void onNewIntent(Intent intent) {
-        super.onNewIntent(intent);
-        NfcFeedback.tagDetected(this, imageNfcWaves);
-        Tag tag = extractTag(intent);
-        if (tag != null && groupWaiting.getVisibility() == View.VISIBLE && selectedService != null) {
+    protected void onTagDiscovered(Tag tag) {
+        if (groupWaiting.getVisibility() == View.VISIBLE && selectedService != null) {
             chargeCard(tag);
         }
-    }
-
-    @SuppressWarnings("deprecation")
-    private static Tag extractTag(Intent intent) {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            return intent.getParcelableExtra(NfcAdapter.EXTRA_TAG, Tag.class);
-        }
-        return intent.getParcelableExtra(NfcAdapter.EXTRA_TAG);
     }
 
     private void populateServices() {
@@ -196,20 +150,37 @@ public class PosActivity extends AppCompatActivity {
 
         Services.Service service = selectedService;
 
+        startNfcAnimation();
         new Thread(() -> {
             NfcWrapper nfcWrapper = new NfcWrapper(mifare, this);
             try {
                 int balance = nfcWrapper.readAmount();
                 if (balance < service.price) {
-                    runOnUiThread(() -> showResult(false, service, Money.format(balance)));
+                    runOnUiThread(() -> {
+                        stopNfcAnimation();
+                        showResult(false, service, Money.format(balance));
+                    });
                     return;
                 }
                 nfcWrapper.buy(service.price);
                 int newBalance = balance - service.price;
-                runOnUiThread(() -> showResult(true, service, Money.format(newBalance)));
+                runOnUiThread(() -> {
+                    stopNfcAnimation();
+                    showResult(true, service, Money.format(newBalance));
+                });
             } catch (IOException e) {
                 Log.e(TAG, "NFC read/write error", e);
-                runOnUiThread(() -> showWaitingState(getString(R.string.nfc_error_io), R.color.neon_red));
+                runOnUiThread(() -> {
+                    stopNfcAnimation();
+                    showWaitingState(getString(R.string.nfc_error_io), R.color.neon_red);
+                });
+            }
+            catch (FailedToFetchKeys e){
+                Log.e(TAG, "Cannot fetch keys for card", e);
+                runOnUiThread(() -> {
+                    stopNfcAnimation();
+                    showWaitingState(getString(R.string.nfc_error_fetch_keys), R.color.neon_red);
+                });
             }
         }).start();
     }

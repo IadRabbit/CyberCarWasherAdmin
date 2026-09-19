@@ -3,7 +3,6 @@
     xmlns:tools="http://schemas.android.com/tools">
 
     <uses-permission android:name="android.permission.NFC" />
-    <uses-permission android:name="android.permission.VIBRATE" />
     <uses-permission android:name="android.permission.INTERNET" />
 
     <application
@@ -16,7 +15,7 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.CyberCarWasherAdmin">
         <activity
-            android:name=".MainActivity"
+            android:name=".activities.MainActivity"
             android:exported="true"
             android:windowSoftInputMode="adjustResize">
             <intent-filter>
@@ -26,20 +25,20 @@
             </intent-filter>
         </activity>
         <activity
-            android:name=".CreateCustomerActivity"
+            android:name=".activities.CreateCustomerActivity"
             android:exported="false"
             android:windowSoftInputMode="adjustResize" />
         <activity
-            android:name=".PosActivity"
+            android:name=".activities.PosActivity"
             android:exported="false" />
         <activity
-            android:name=".CardFormatActivity"
+            android:name=".activities.CardFormatActivity"
             android:exported="false" />
         <activity
-            android:name=".CardReadActivity"
+            android:name=".activities.CardReadActivity"
             android:exported="false" />
         <activity
-            android:name=".RechargeActivity"
+            android:name=".activities.RechargeActivity"
             android:exported="false"
             android:windowSoftInputMode="adjustResize" />
     </application>

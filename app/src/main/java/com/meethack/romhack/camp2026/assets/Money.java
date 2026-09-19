@@ -1,4 +1,4 @@
-package com.meethack.romhack.camp2026;
+package com.meethack.romhack.camp2026.assets;
 
 import java.util.Locale;
 

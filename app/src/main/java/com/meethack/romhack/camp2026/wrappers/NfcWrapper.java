@@ -1,40 +1,19 @@
-package com.meethack.romhack.camp2026;
+package com.meethack.romhack.camp2026.wrappers;
 
 import android.content.Context;
 import android.nfc.tech.MifareClassic;
 
-import org.json.JSONArray;
-import org.json.JSONException;
-import org.json.JSONObject;
+import com.meethack.romhack.camp2026.assets.Customer;
 
-import java.io.BufferedReader;
 import java.io.IOException;
-import java.io.InputStream;
-import java.io.InputStreamReader;
-import java.io.OutputStream;
-
-import java.net.HttpURLConnection;
-import java.net.URL;
 
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
-import java.nio.charset.StandardCharsets;
-
-import java.security.KeyManagementException;
-import java.security.NoSuchAlgorithmException;
-import java.security.SecureRandom;
-import java.security.cert.X509Certificate;
 
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Calendar;
 import java.util.List;
-
-import javax.net.ssl.HttpsURLConnection;
-import javax.net.ssl.SSLContext;
-import javax.net.ssl.SSLSocketFactory;
-import javax.net.ssl.TrustManager;
-import javax.net.ssl.X509TrustManager;
 
 public class NfcWrapper {
     private enum LOGGED {
@@ -43,13 +22,12 @@ public class NfcWrapper {
         COMPUTED_KEYS,
     }
     private final MifareClassic mifareCard;
-    private final Context context;
-    private static final int keySize = 6;
+    private final RequestWrapper requestWrapper;
     private static final int nameSector = 15;
     private static final int surnameSector = 14;
     private static final int creationDateSector = 13;
     private static final int amountSector = 12;
-    private final byte[][][] sectorKeys = new byte[16][2][6];
+    private byte[][][] sectorKeys = new byte[16][2][Utils.keySize];
     private static final byte[] accessBits = new byte[]{
             (byte)0xF0, (byte)0xF0, (byte)0xF0, (byte)0x49
     };
@@ -75,13 +53,13 @@ public class NfcWrapper {
 
     public NfcWrapper(MifareClassic mifareCard, Context context){
         this.mifareCard = mifareCard;
-        this.context = context;
+        this.requestWrapper = new RequestWrapper(context);
     }
 
     private boolean isSectorKeysEmpty(){
         for (int sector = 0; sector < 16; sector++){
             for (int key = 0; key < 2; key++){
-                for (int b = 0; b < keySize; b++){
+                for (int b = 0; b < Utils.keySize; b++){
                     if (this.sectorKeys[sector][key][b] != 0){
                         return false;
                     }
@@ -92,7 +70,6 @@ public class NfcWrapper {
         return true;
     }
 
-    /** POSTs the tag's first block to the configured endpoint and returns {keyA, keyB}. Must be called off the main thread. */
     public void fetchKeys() throws IOException {
         if (!this.isSectorKeysEmpty()) {
             return;
@@ -104,107 +81,7 @@ public class NfcWrapper {
             throw new IOException("Could not authenticate sector 0 to read block 0");
         }
         block0 = this.mifareCard.readBlock(0);
-
-        JSONObject payload = new JSONObject();
-        try {
-            payload.put("uid", bytesToHex(block0));
-        } catch (JSONException e) {
-            throw new IOException(e);
-        }
-
-        String endpoint = this.context.getString(R.string.keys_endpoint);
-        String headerName = this.context.getString(R.string.keys_header_name);
-        String headerValue = this.context.getString(R.string.keys_header_value);
-
-        HttpURLConnection connection = (HttpURLConnection) new URL(endpoint).openConnection();
-        if (connection instanceof HttpsURLConnection) {
-            // Mirrors the reference client's verify=False: the ALB currently serves a cert
-            // the platform doesn't trust. Do not ship this without fixing the cert instead.
-            disableTlsVerification((HttpsURLConnection) connection);
-        }
-        try {
-            connection.setRequestMethod("POST");
-            connection.setDoOutput(true);
-            connection.setRequestProperty("Content-Type", "application/json; charset=utf-8");
-            connection.setRequestProperty(headerName, headerValue);
-
-            try (OutputStream body = connection.getOutputStream()) {
-                body.write(payload.toString().getBytes(StandardCharsets.UTF_8));
-            }
-
-            int status = connection.getResponseCode();
-            InputStream responseStream = (status >= 200 && status < 300)
-                    ? connection.getInputStream()
-                    : connection.getErrorStream();
-            String responseBody = readAll(responseStream);
-
-            if (status < 200 || status >= 300) {
-                throw new IOException("fetchKeys failed: HTTP " + status + " - " + responseBody);
-            }
-
-            JSONArray keys = new JSONObject(responseBody).getJSONArray("keys");
-
-            for (int a = 0; a < keys.length(); a++){
-                long keyA = keys.getJSONObject(a).getLong("key_a");
-                long keyB = keys.getJSONObject(a).getLong("key_b");
-                byte[] _keyAB = ByteBuffer.allocate(8).putLong(keyA).array();
-                byte[] _keyBB = ByteBuffer.allocate(8).putLong(keyB).array();
-                byte[] keyAB = new byte[keySize];
-                byte[] keyBB = new byte[keySize];
-                System.arraycopy(_keyAB, 2, keyAB, 0, keySize);
-                System.arraycopy(_keyBB, 2, keyBB, 0, keySize);
-                this.sectorKeys[a][0] = keyAB;
-                this.sectorKeys[a][1] = keyBB;
-            }
-
-        } catch (JSONException e) {
-            throw new IOException(e);
-        } finally {
-            connection.disconnect();
-        }
-    }
-
-    private static void disableTlsVerification(HttpsURLConnection connection) throws IOException {
-        TrustManager[] trustAllCerts = new TrustManager[]{
-                new X509TrustManager() {
-                    public X509Certificate[] getAcceptedIssuers() { return new X509Certificate[0]; }
-                    public void checkClientTrusted(X509Certificate[] certs, String authType) { }
-                    public void checkServerTrusted(X509Certificate[] certs, String authType) { }
-                }
-        };
-        try {
-            SSLContext sslContext = SSLContext.getInstance("TLS");
-            sslContext.init(null, trustAllCerts, new SecureRandom());
-            SSLSocketFactory socketFactory = sslContext.getSocketFactory();
-            connection.setSSLSocketFactory(socketFactory);
-            connection.setHostnameVerifier((hostname, session) -> true);
-        } catch (NoSuchAlgorithmException | KeyManagementException e) {
-            throw new IOException(e);
-        }
-    }
-
-    private static String readAll(InputStream in) throws IOException {
-        StringBuilder sb = new StringBuilder();
-        try (BufferedReader reader = new BufferedReader(new InputStreamReader(in, StandardCharsets.UTF_8))) {
-            String line;
-            while ((line = reader.readLine()) != null) {
-                sb.append(line);
-            }
-        }
-        return sb.toString();
-    }
-
-    private static String bytesToHex(byte[] bytes) {
-        StringBuilder sb = new StringBuilder(bytes.length * 2);
-        for (byte b : bytes) {
-            sb.append(String.format("%02X", b));
-        }
-        return sb.toString();
-    }
-
-    public static byte[] stringToHex(String value){
-        byte[] bytes = value.getBytes(StandardCharsets.UTF_8);
-        return Arrays.copyOf(bytes, 48);
+        this.sectorKeys = this.requestWrapper.fetchKeys(block0);
     }
 
     public static final class SectorDump {
@@ -219,7 +96,7 @@ public class NfcWrapper {
         }
     }
 
-    public List<SectorDump> dumpSectors() throws IOException, JSONException {
+    public List<SectorDump> dumpSectors() throws IOException {
         this.mifareCard.connect();
         List<SectorDump> dump = new ArrayList<>();
         int sectorCount = this.mifareCard.getSectorCount();
@@ -243,8 +120,8 @@ public class NfcWrapper {
                     keyBB = this.sectorKeys[sector][1];
                 }
 
-                System.arraycopy(keyAB, 0, blocks[3], 0, keySize);
-                System.arraycopy(keyBB, 0, blocks[3], 10, keySize);
+                System.arraycopy(keyAB, 0, blocks[3], 0, Utils.keySize);
+                System.arraycopy(keyBB, 0, blocks[3], 10, Utils.keySize);
             }
 
             dump.add(new SectorDump(sector, authenticated != LOGGED.UNAUTHORIZED, blocks));
@@ -266,7 +143,6 @@ public class NfcWrapper {
         }
     }
 
-    /** Writes back arbitrary blocks as-is, no interpretation of the bytes' meaning. */
     public void writeRawBlocks(List<RawBlockEdit> edits) throws IOException {
         int last_auth = -1;
         LOGGED authenticated = LOGGED.UNAUTHORIZED;
@@ -288,7 +164,7 @@ public class NfcWrapper {
 
     }
 
-    public void saveData(Customer customer) throws IOException, JSONException {
+    public void saveData(Customer customer) throws IOException {
         this.mifareCard.connect();
         this.writeName(customer.getName());
         this.writeSurname(customer.getSurname());
@@ -320,7 +196,6 @@ public class NfcWrapper {
         this.mifareCard.close();
     }
 
-    /** Reads the current balance without changing it. */
     public int readAmount() throws IOException {
         this.mifareCard.connect();
         this.auth(amountSector);
@@ -354,9 +229,9 @@ public class NfcWrapper {
         return LOGGED.UNAUTHORIZED;
     }
 
-    private void writeName(String name) throws IOException, JSONException {
+    private void writeName(String name) throws IOException {
        this.auth(nameSector);
-        byte[] nameB = NfcWrapper.stringToHex(name);
+        byte[] nameB = Utils.stringToHex(name);
         int firstBlockOfSector = this.mifareCard.sectorToBlock(nameSector);
 
          for (int a = 0; a < 3; a++) {
@@ -367,7 +242,7 @@ public class NfcWrapper {
 
     private void writeSurname(String surname) throws IOException {
         this.auth(surnameSector);
-        byte[] nameB = NfcWrapper.stringToHex(surname);
+        byte[] nameB = Utils.stringToHex(surname);
         int firstBlockOfSector = this.mifareCard.sectorToBlock(surnameSector);
 
         for (int a = 0; a < 3; a++) {
@@ -400,9 +275,9 @@ public class NfcWrapper {
 
     private byte[] createSectorTrailer(int sector) {
         byte[] chunk = new byte[16];
-        System.arraycopy(this.sectorKeys[sector][0], 0, chunk, 0, keySize);
+        System.arraycopy(this.sectorKeys[sector][0], 0, chunk, 0, Utils.keySize);
         System.arraycopy(accessBits, 0, chunk, 6, 4);
-        System.arraycopy(this.sectorKeys[sector][1], 0, chunk, 10, keySize);
+        System.arraycopy(this.sectorKeys[sector][1], 0, chunk, 10, Utils.keySize);
 
         return chunk;
     }
@@ -410,9 +285,9 @@ public class NfcWrapper {
     private byte[] createResetFactorySectorTrailer(){
         byte[] chunk = new byte[16];
 
-        System.arraycopy(defaultKey, 0, chunk, 0, keySize);
+        System.arraycopy(defaultKey, 0, chunk, 0, Utils.keySize);
         System.arraycopy(resetFactoryAccessBits, 0, chunk, 6, 4);
-        System.arraycopy(defaultKey, 0, chunk, 10, keySize);
+        System.arraycopy(defaultKey, 0, chunk, 10, Utils.keySize);
 
         return chunk;
     }
@@ -431,7 +306,7 @@ public class NfcWrapper {
         }
     }
 
-    public void format() throws IOException, JSONException {
+    public void format() throws IOException {
         this.mifareCard.connect();
         for (int a = 0; a < 16; a++){
             this.auth(a);

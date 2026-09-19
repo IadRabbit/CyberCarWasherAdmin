@@ -1,13 +1,7 @@
-package com.meethack.romhack.camp2026;
+package com.meethack.romhack.camp2026.activities;
 
-import android.app.PendingIntent;
-import android.content.Intent;
-import android.content.IntentFilter;
-import android.nfc.NfcAdapter;
 import android.nfc.Tag;
 import android.nfc.tech.MifareClassic;
-import android.nfc.tech.NfcA;
-import android.os.Build;
 import android.os.Bundle;
 import android.text.InputType;
 import android.util.Log;
@@ -16,15 +10,17 @@ import android.view.ViewGroup;
 import android.view.inputmethod.InputMethodManager;
 import android.widget.Button;
 import android.widget.EditText;
-import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 
 import androidx.activity.EdgeToEdge;
-import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.graphics.Insets;
 import androidx.core.view.ViewCompat;
 import androidx.core.view.WindowInsetsCompat;
+
+import com.meethack.romhack.camp2026.exceptions.FailedToFetchKeys;
+import com.meethack.romhack.camp2026.wrappers.NfcWrapper;
+import com.meethack.romhack.camp2026.R;
 
 import org.json.JSONException;
 
@@ -35,14 +31,12 @@ import java.util.Locale;
 
 // This activity is vibecoded 95%
 
-public class CardReadActivity extends AppCompatActivity {
+public class CardReadActivity extends NfcActivity {
     private static final String TAG = "CardReadActivity";
 
 
     private enum Mode { READ, WRITE }
 
-    private NfcAdapter nfcAdapter;
-    private PendingIntent nfcPendingIntent;
     private Mode mode = Mode.READ;
 
     private View groupWaiting;
@@ -59,7 +53,6 @@ public class CardReadActivity extends AppCompatActivity {
     private TextView textSak;
     private TextView textType;
     private LinearLayout dumpContainer;
-    private ImageView imageNfcWaves;
     private View hexKeypad;
     private EditText focusedEditor;
 
@@ -89,52 +82,15 @@ public class CardReadActivity extends AppCompatActivity {
         textSak = findViewById(R.id.textSak);
         textType = findViewById(R.id.textType);
         dumpContainer = findViewById(R.id.dumpContainer);
-        imageNfcWaves = findViewById(R.id.imageNfcWaves);
         hexKeypad = findViewById(R.id.hexKeypad);
         findViewById(R.id.buttonBack).setOnClickListener(v -> finish());
         tabInfo.setOnClickListener(v -> showInfo());
         tabData.setOnClickListener(v -> showData());
         buttonHintAction.setOnClickListener(v -> onHintActionClicked());
-
-        // set up NFC dispatch immediately so the card can be tapped as soon as the screen opens
-        this.nfcAdapter = NfcAdapter.getDefaultAdapter(this);
-        Intent nfcIntent = new Intent(this, getClass());
-        nfcIntent.addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP);
-        this.nfcPendingIntent = PendingIntent.getActivity(
-                this, 0, nfcIntent,
-                PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_MUTABLE
-        );
     }
 
     @Override
-    protected void onResume() {
-        super.onResume();
-        if (this.nfcAdapter != null) {
-            this.nfcAdapter.enableForegroundDispatch(
-                    this,
-                    nfcPendingIntent,
-                    new IntentFilter[]{new IntentFilter(NfcAdapter.ACTION_TAG_DISCOVERED)},
-                    new String[][]{{MifareClassic.class.getName()}}
-            );
-        }
-    }
-
-    @Override
-    protected void onPause() {
-        super.onPause();
-        if (nfcAdapter != null) {
-            nfcAdapter.disableForegroundDispatch(this);
-        }
-    }
-
-    @Override
-    protected void onNewIntent(Intent intent) {
-        super.onNewIntent(intent);
-        NfcFeedback.pulse(imageNfcWaves);
-        Tag tag = extractTag(intent);
-        if (tag == null) {
-            return;
-        }
+    protected void onTagDiscovered(Tag tag) {
         if (mode == Mode.WRITE) {
             writeEditedBlocks(tag);
         } else {
@@ -142,18 +98,10 @@ public class CardReadActivity extends AppCompatActivity {
         }
     }
 
-    @SuppressWarnings("deprecation")
-    private static Tag extractTag(Intent intent) {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            return intent.getParcelableExtra(NfcAdapter.EXTRA_TAG, Tag.class);
-        }
-        return intent.getParcelableExtra(NfcAdapter.EXTRA_TAG);
-    }
-
     private void readCard(Tag tag) {
         textUid.setText(toHex(tag.getId()));
 
-        NfcA nfcA = NfcA.get(tag);
+        android.nfc.tech.NfcA nfcA = android.nfc.tech.NfcA.get(tag);
         if (nfcA != null) {
             textAtqa.setText(toHex(nfcA.getAtqa()));
             textSak.setText(toHex(new byte[]{(byte) nfcA.getSak()}));
@@ -175,21 +123,33 @@ public class CardReadActivity extends AppCompatActivity {
         }
         textType.setText(mifareTypeLabel(mifare));
 
+        startNfcAnimation();
         new Thread(() -> {
             NfcWrapper nfcWrapper = new NfcWrapper(mifare, this);
             List<NfcWrapper.SectorDump> dump;
             try {
                 dump = nfcWrapper.dumpSectors();
-            } catch (IOException | JSONException | SecurityException e) {
+            } catch (IOException e) {
                 runOnUiThread(() -> {
+                    stopNfcAnimation();
                     addLabelRow(getString(R.string.nfc_error_io), R.color.lcd_ink, false);
                     Log.e(TAG, String.valueOf(e));
                     showData();
                 });
                 return;
             }
+            catch (FailedToFetchKeys e){
+                Log.e(TAG, "Cannot fetch keys for card", e);
+                runOnUiThread(() -> {
+                    stopNfcAnimation();
+                    addLabelRow(getString(R.string.nfc_error_fetch_keys), R.color.lcd_ink, false);
+                    showData();
+                });
+                return;
+            }
 
             runOnUiThread(() -> {
+                stopNfcAnimation();
                 for (NfcWrapper.SectorDump sector : dump) {
                     addLabelRow(getString(R.string.read_sector, sector.sector), R.color.lcd_ink, true);
                     if (!sector.authenticated) {
@@ -253,6 +213,7 @@ public class CardReadActivity extends AppCompatActivity {
         }
 
         boolean finalHasInvalidHex = hasInvalidHex;
+        startNfcAnimation();
         new Thread(() -> {
             NfcWrapper nfcWrapper = new NfcWrapper(mifare, this);
             try {
@@ -261,7 +222,18 @@ public class CardReadActivity extends AppCompatActivity {
                 Log.e(TAG, String.valueOf(e));
 
                 runOnUiThread(() -> {
+                    stopNfcAnimation();
                     textWaitingStatus.setText(getString(R.string.nfc_error_io));
+                    textWaitingStatus.setTextColor(getColor(R.color.neon_red));
+                    mode = Mode.READ;
+                });
+                return;
+            } catch (FailedToFetchKeys e) {
+                Log.e(TAG, "Cannot fetch keys for card", e);
+
+                runOnUiThread(() -> {
+                    stopNfcAnimation();
+                    textWaitingStatus.setText(getString(R.string.nfc_error_fetch_keys));
                     textWaitingStatus.setTextColor(getColor(R.color.neon_red));
                     mode = Mode.READ;
                 });
@@ -269,6 +241,7 @@ public class CardReadActivity extends AppCompatActivity {
             }
 
             runOnUiThread(() -> {
+                stopNfcAnimation();
                 String status = getString(R.string.read_status_write_success);
                 int colorRes = R.color.neon_green;
                 if (finalHasInvalidHex) {
