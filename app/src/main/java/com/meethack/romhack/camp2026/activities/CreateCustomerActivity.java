@@ -74,10 +74,10 @@ public class CreateCustomerActivity extends NfcActivity {
         textWaitingTitle = findViewById(R.id.textWaitingTitle);
         textWaitingStatus = findViewById(R.id.textWaitingStatus);
         textFormWarning = findViewById(R.id.textFormWarning);
-        ((TextView) findViewById(R.id.textDataValue)).setText(viewDateFormat.format(new Date()));
-        this.nameText = findViewById(R.id.editNome);
-        this.surnameText = findViewById(R.id.editCognome);
-        ((TextView) findViewById(R.id.textSaldoDefault)).setText(getString(R.string.create_label_saldo_default, DEFAULT_AMOUNT));
+        ((TextView) findViewById(R.id.textDateValue)).setText(viewDateFormat.format(new Date()));
+        this.nameText = findViewById(R.id.editFirstName);
+        this.surnameText = findViewById(R.id.editLastName);
+        ((TextView) findViewById(R.id.textDefaultBalance)).setText(getString(R.string.create_label_default_balance, DEFAULT_AMOUNT));
         findViewById(R.id.buttonBack).setOnClickListener(v -> finish());
         findViewById(R.id.buttonBackToForm).setOnClickListener(v -> showFormState());
         findViewById(R.id.buttonWrite).setOnClickListener(v -> onWriteClicked());
@@ -99,11 +99,11 @@ public class CreateCustomerActivity extends NfcActivity {
         String surname = this.surnameText.getText().toString().trim();
 
         if (TextUtils.isEmpty(name)) {
-            this.nameText.setError(getString(R.string.create_error_nome));
+            this.nameText.setError(getString(R.string.create_error_first_name));
             return;
         }
         if (TextUtils.isEmpty(surname)) {
-            this.surnameText.setError(getString(R.string.create_error_cognome));
+            this.surnameText.setError(getString(R.string.create_error_last_name));
             return;
         }
 

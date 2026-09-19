@@ -29,9 +29,8 @@ import java.util.Locale;
 
 // This activity is vibecoded 95%
 
-public class CardReadActivity extends NfcActivity {
-    private static final String TAG = "CardReadActivity";
-
+public class CardActivity extends NfcActivity {
+    private static final String TAG = "CardActivity";
 
     private enum Mode { READ, WRITE }
 

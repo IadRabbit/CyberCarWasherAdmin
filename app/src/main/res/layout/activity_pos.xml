@@ -178,7 +178,7 @@
             android:fontFamily="sans-serif-black"
             android:letterSpacing="0.03"
             android:textSize="20sp"
-            tools:text="Pagamento completato" />
+            tools:text="Payment completed" />
 
         <View
             android:layout_width="match_parent"
@@ -195,7 +195,7 @@
             android:fontFamily="sans-serif-medium"
             android:textColor="@color/text_primary"
             android:textSize="18sp"
-            tools:text="Mario Rossi" />
+            tools:text="John Doe" />
 
         <TextView
             android:id="@+id/textResultService"
@@ -205,7 +205,7 @@
             android:fontFamily="monospace"
             android:textColor="@color/text_dim"
             android:textSize="13sp"
-            tools:text="Lavaggio Completo — € 9,00" />
+            tools:text="Full Wash — € 9.00" />
 
         <TextView
             android:id="@+id/textResultBalance"
@@ -213,7 +213,7 @@
             android:layout_height="wrap_content"
             android:fontFamily="sans-serif-black"
             android:textSize="24sp"
-            tools:text="Nuovo saldo: € 18,50" />
+            tools:text="New balance: € 18.50" />
 
         <com.google.android.material.button.MaterialButton
             android:id="@+id/buttonResultPrimary"
@@ -229,7 +229,7 @@
             app:rippleColor="@color/neon_magenta"
             app:strokeColor="@color/neon_cyan"
             app:strokeWidth="1.5dp"
-            tools:text="Nuova operazione" />
+            tools:text="New operation" />
 
     </LinearLayout>
 

@@ -35,7 +35,7 @@
             android:name=".activities.CardFormatActivity"
             android:exported="false" />
         <activity
-            android:name=".activities.CardReadActivity"
+            android:name=".activities.CardActivity"
             android:exported="false" />
         <activity
             android:name=".activities.RechargeActivity"

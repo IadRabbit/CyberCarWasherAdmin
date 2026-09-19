@@ -11,7 +11,7 @@ android {
     }
 
     defaultConfig {
-        applicationId = "com.meethack.romhack.camp2026"
+        applicationId = "com.meethack.romhack.camp2026.admin"
         minSdk = 30
         targetSdk = 36
         versionCode = 1

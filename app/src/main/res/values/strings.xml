@@ -1,5 +1,5 @@
 <resources>
-    <string name="app_name">CyberCarWasherAdmin</string>
+    <string name="app_name">CCWA</string>
 
     <!-- home -->
     <string name="home_tag">// ADMIN CONSOLE</string>
@@ -14,13 +14,13 @@
 
     <!-- create customer -->
     <string name="create_header">New customer</string>
-    <string name="create_label_nome">First name</string>
-    <string name="create_label_cognome">Last name</string>
-    <string name="create_label_saldo_default">The card will be issued with a default balance of €%1$d</string>
-    <string name="create_label_data">Creation date</string>
+    <string name="create_label_first_name">First name</string>
+    <string name="create_label_last_name">Last name</string>
+    <string name="create_label_default_balance">The card will be issued with a default balance of €%1$d</string>
+    <string name="create_label_date">Creation date</string>
     <string name="create_button_write">Write to card</string>
-    <string name="create_error_nome">Enter the first name</string>
-    <string name="create_error_cognome">Enter the last name</string>
+    <string name="create_error_first_name">Enter the first name</string>
+    <string name="create_error_last_name">Enter the last name</string>
     <string name="create_waiting_title">Bring the card closer</string>
     <string name="create_waiting_subtitle">waiting for NFC write…</string>
     <string name="create_status_writing">WRITING…</string>
