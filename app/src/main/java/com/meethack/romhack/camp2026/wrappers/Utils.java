@@ -18,4 +18,15 @@ public class Utils {
         byte[] bytes = value.getBytes(StandardCharsets.UTF_8);
         return Arrays.copyOf(bytes, 48);
     }
+
+    public static int[] byte2ArrayBits(byte b){
+        int[] bits = new int[8];
+        String binary = String.format("%8s", Integer.toBinaryString(b & 0xFF)).replace(' ', '0');
+
+        for (int a = 0; a < bits.length; a++){
+            bits[a] = binary.charAt(a) - '0';
+        }
+
+        return bits;
+    }
 }

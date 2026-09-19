@@ -166,22 +166,86 @@ public class NfcWrapper {
         }
     }
 
+
+    boolean logicW(int C1, int C2, int C3){
+        boolean isWritable = false;
+
+        if (C1 == 0 && C2 == 0 && C3 == 0){
+            isWritable = true;
+        }
+
+        else if (C1 == 1 && C2 == 0 && C3 == 0){
+            isWritable = true;
+        }
+
+        else if (C1 == 1 && C2 == 1 && C3 == 0){
+            isWritable = true;
+        }
+
+        else if (C1 == 0 && C2 == 1 && C3 == 1){
+            isWritable = true;
+        }
+
+        return isWritable;
+    }
+
+    boolean isBlockWritable(byte[] sectorBlock, int blockNum){
+        boolean isWritable = false;
+        int[] bits2 = Utils.byte2ArrayBits(sectorBlock[7]);
+        int[] bits3 = Utils.byte2ArrayBits(sectorBlock[8]);
+        int C1, C2, C3;
+
+
+        switch (blockNum){
+            case 0:
+                C1 = bits2[3];
+                C2 = bits3[7];
+                C3 = bits3[3];
+                isWritable = logicW(C1, C2, C3);
+                break;
+
+            case 1:
+                C1 = bits2[2];
+                C2 = bits3[6];
+                C3 = bits3[2];
+                isWritable = logicW(C1, C2, C3);
+                break;
+
+            case 2:
+                C1 = bits2[1];
+                C2 = bits3[5];
+                C3 = bits3[1];
+                isWritable = logicW(C1, C2, C3);
+                break;
+        }
+
+        return isWritable;
+    }
+
     public void writeRawBlocks(List<RawBlockEdit> edits) throws IOException {
-        int last_auth = 0;
-        LOGGED authenticated = this.auth(0);
+        int last_auth = 0, block = 0;
+        this.mifareCard.connect();
+        LOGGED authenticated = this.auth(last_auth);
+        byte[] sector = this.mifareCard.readBlock(last_auth + 3);
         for (RawBlockEdit edit : edits) {
             if (edit.sector != last_auth){
                 this.mifareCard.close();
                 this.mifareCard.connect();
                 authenticated = this.auth(edit.sector);
                 last_auth = edit.sector;
+                block = this.mifareCard.sectorToBlock(edit.sector);
+                sector = this.mifareCard.readBlock(block + 3);
             }
 
             if (authenticated == LOGGED.UNAUTHORIZED) {
                 throw new IOException("Unauthorized, wrong keys");
             }
-            int block = this.mifareCard.sectorToBlock(edit.sector) + edit.blockIndexInSector;
-            this.mifareCard.writeBlock(block, edit.data);
+
+            if (block == 0 || (edit.blockIndexInSector != 3 && !this.isBlockWritable(sector, edit.blockIndexInSector))){
+                continue;
+            }
+
+            this.mifareCard.writeBlock(block + edit.blockIndexInSector, edit.data);
         }
         this.mifareCard.close();
 
