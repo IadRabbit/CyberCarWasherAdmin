@@ -22,8 +22,6 @@ import com.meethack.romhack.camp2026.exceptions.FailedToFetchKeys;
 import com.meethack.romhack.camp2026.wrappers.NfcWrapper;
 import com.meethack.romhack.camp2026.R;
 
-import org.json.JSONException;
-
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
