@@ -41,7 +41,9 @@ public class NfcWrapper {
             (byte)0xF7, (byte)0x87, (byte)0x80, (byte)0x49
     };
 
-    private static final byte[] defaultKey = new byte[]{
+    private static final byte[] sector0AccessBits = new byte[]{
+            (byte)0xFF, (byte)0xFF, (byte)0xFF, (byte)0xFF, (byte)0xFF, (byte)0xFF,
+            (byte)0x90, (byte)0xF0, (byte)0xF6, (byte)0x49,
             (byte)0xFF, (byte)0xFF, (byte)0xFF, (byte)0xFF, (byte)0xFF, (byte)0xFF
     };
 
@@ -62,23 +64,26 @@ public class NfcWrapper {
         boolean authA;
         boolean authB;
 
-        authA = this.mifareCard.authenticateSectorWithKeyA(sector, defaultKey);
-        authB = this.mifareCard.authenticateSectorWithKeyB(sector, defaultKey);
-
+        authA = this.mifareCard.authenticateSectorWithKeyA(sector, MifareClassic.KEY_DEFAULT);
+        authB = this.mifareCard.authenticateSectorWithKeyB(sector, MifareClassic.KEY_DEFAULT);
 
         if (authA && authB){
             return LOGGED.DEFAULT_KEYS;
         }
 
         authA = this.mifareCard.authenticateSectorWithKeyA(sector, this.sectorKeys[sector][0]);
-        authB = this.mifareCard.authenticateSectorWithKeyB(sector, this.sectorKeys[sector][1]);
 
-
-        if (authA && authB){
-            return LOGGED.COMPUTED_KEYS;
+        if (!authA){
+            return LOGGED.UNAUTHORIZED;
         }
 
-        return LOGGED.UNAUTHORIZED;
+        authB = this.mifareCard.authenticateSectorWithKeyB(sector, this.sectorKeys[sector][1]);
+
+        if (!authB){
+            return LOGGED.UNAUTHORIZED;
+        }
+
+        return LOGGED.COMPUTED_KEYS;
     }
 
     private boolean isSectorKeysEmpty(){
@@ -100,7 +105,7 @@ public class NfcWrapper {
             return;
         }
 
-        boolean authenticated = this.mifareCard.authenticateSectorWithKeyA(0, defaultKey);
+        boolean authenticated = this.mifareCard.authenticateSectorWithKeyA(0, MifareClassic.KEY_DEFAULT);
         if (!authenticated) {
             throw new IOException("Could not authenticate sector 0 to read block 0");
         }
@@ -127,6 +132,7 @@ public class NfcWrapper {
 
         for (int sector = 0; sector < sectorCount; sector++) {
             LOGGED authenticated = this.auth(sector);
+            authenticated = this.auth(sector);
             int firstBlockOfSector = this.mifareCard.sectorToBlock(sector);
             int blockCount = this.mifareCard.getBlockCountInSector(sector);
             byte[][] blocks = new byte[blockCount][];
@@ -136,8 +142,8 @@ public class NfcWrapper {
                     blocks[b] = this.mifareCard.readBlock(firstBlockOfSector + b);
                 }
 
-                byte[] keyAB = defaultKey;
-                byte[] keyBB = defaultKey;
+                byte[] keyAB = MifareClassic.KEY_DEFAULT;
+                byte[] keyBB = MifareClassic.KEY_DEFAULT;
 
                 if (authenticated == LOGGED.COMPUTED_KEYS) {
                     keyAB = this.sectorKeys[sector][0];
@@ -311,7 +317,6 @@ public class NfcWrapper {
         this.auth(amountSector);
         int firstBlockOfSector = this.mifareCard.sectorToBlock(amountSector);
 
-
         if (!this.isValidValueBlock(firstBlockOfSector) || !checkAccessBits(firstBlockOfSector+3)){
             throw new InvalidValueBlock("This block looks tampered");
         }
@@ -393,25 +398,29 @@ public class NfcWrapper {
     private byte[] createResetFactorySectorTrailer(){
         byte[] chunk = new byte[16];
 
-        System.arraycopy(defaultKey, 0, chunk, 0, Utils.keySize);
+        System.arraycopy(MifareClassic.KEY_DEFAULT, 0, chunk, 0, Utils.keySize);
         System.arraycopy(resetFactoryAccessBits, 0, chunk, 6, 4);
-        System.arraycopy(defaultKey, 0, chunk, 10, Utils.keySize);
+        System.arraycopy(MifareClassic.KEY_DEFAULT, 0, chunk, 10, Utils.keySize);
 
         return chunk;
     }
 
     private byte[] createWritableSectorTrailer(){
         byte[] chunk = new byte[16];
-        System.arraycopy(defaultKey, 0, chunk, 0, Utils.keySize);
+        System.arraycopy(MifareClassic.KEY_DEFAULT, 0, chunk, 0, Utils.keySize);
         System.arraycopy(writableAccessBits, 0, chunk, 6, 4);
-        System.arraycopy(defaultKey, 0, chunk, 10, Utils.keySize);
+        System.arraycopy(MifareClassic.KEY_DEFAULT, 0, chunk, 10, Utils.keySize);
         return chunk;
     }
 
     private void rewriteAccessBits() throws IOException {
+        this.auth(0);
+        int trailerBlockOfSector = this.mifareCard.sectorToBlock(0) + 3;
+        this.mifareCard.writeBlock(trailerBlockOfSector, sector0AccessBits);
+
         for (int a = 1; a < 16; a++){
             this.auth(a);
-            int trailerBlockOfSector = this.mifareCard.sectorToBlock(a) + 3;
+            trailerBlockOfSector = this.mifareCard.sectorToBlock(a) + 3;
             this.mifareCard.writeBlock(trailerBlockOfSector, createSectorTrailer(a));
         }
     }
