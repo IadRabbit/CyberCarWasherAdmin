@@ -2,115 +2,187 @@ package com.meethack.romhack.camp2026.wrappers;
 
 import android.content.Context;
 import android.nfc.tech.MifareClassic;
+import android.util.Log;
 
 import com.meethack.romhack.camp2026.assets.Customer;
 import com.meethack.romhack.camp2026.exceptions.InvalidValueBlock;
 
 import java.io.IOException;
-
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
-
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Calendar;
 import java.util.List;
 
+/** Centralized, controller-safe MIFARE Classic access for every admin scene. */
 public class NfcWrapper {
-    private enum LOGGED {
-        UNAUTHORIZED,
-        DEFAULT_KEYS,
-        COMPUTED_KEYS,
+    private static final String TAG = "NfcWrapper";
+    private static final int BLOCK_SIZE = MifareClassic.BLOCK_SIZE;
+    private static final int KEY_A_INDEX = 0;
+    private static final int KEY_B_INDEX = 1;
+    private static final int APPLICATION_SECTOR_COUNT = 16;
+
+    private static final int NAME_SECTOR = 15;
+    private static final int SURNAME_SECTOR = 14;
+    private static final int CREATION_DATE_SECTOR = 13;
+    private static final int AMOUNT_SECTOR = 12;
+    private static final byte VALUE_BLOCK_ADDRESS = 0x49;
+
+    private static final byte[] ACCESS_BITS = new byte[]{
+            (byte) 0xF0, (byte) 0xF0, (byte) 0xF0, (byte) 0x49
+    };
+    private static final byte[] RESET_FACTORY_ACCESS_BITS = new byte[]{
+            (byte) 0xFF, (byte) 0x07, (byte) 0x80, (byte) 0x49
+    };
+    private static final byte[] WRITABLE_ACCESS_BITS = new byte[]{
+            (byte) 0xF7, (byte) 0x87, (byte) 0x80, (byte) 0x49
+    };
+    private static final byte[] SECTOR_0_TRAILER = new byte[]{
+            (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF,
+            (byte) 0xFF, (byte) 0xFF, (byte) 0x90, (byte) 0xF0,
+            (byte) 0xF6, (byte) 0x49, (byte) 0xFF, (byte) 0xFF,
+            (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF
+    };
+
+    private enum KeyType { A, B }
+
+    private enum KeySource { SERVER, DEFAULT }
+
+    private static final class KeyCandidate {
+        final KeyType type;
+        final KeySource source;
+        final byte[] key;
+
+        KeyCandidate(KeyType type, KeySource source, byte[] key) {
+            this.type = type;
+            this.source = source;
+            this.key = key;
+        }
     }
+
+    private static final class Authentication {
+        final KeySource source;
+
+        Authentication(KeySource source) {
+            this.source = source;
+        }
+    }
+
     private final MifareClassic mifareCard;
     private final RequestWrapper requestWrapper;
-    private static final int nameSector = 15;
-    private static final int surnameSector = 14;
-    private static final int creationDateSector = 13;
-    private static final int amountSector = 12;
-    private byte[][][] sectorKeys = new byte[16][2][Utils.keySize];
-    private static final byte[] accessBits = new byte[]{
-            (byte)0xF0, (byte)0xF0, (byte)0xF0, (byte)0x49
-    };
+    private byte[][][] sectorKeys = new byte[0][][];
+    private boolean keysLoaded;
 
-    private static final byte[] resetFactoryAccessBits = new byte[]{
-            (byte)0xFF, (byte)0x07, (byte)0x80, (byte)0x49
-    };
-
-    private static final byte[] writableAccessBits = new byte[]{
-            (byte)0xF7, (byte)0x87, (byte)0x80, (byte)0x49
-    };
-
-    private static final byte[] sector0AccessBits = new byte[]{
-            (byte)0xFF, (byte)0xFF, (byte)0xFF, (byte)0xFF, (byte)0xFF, (byte)0xFF,
-            (byte)0x90, (byte)0xF0, (byte)0xF6, (byte)0x49,
-            (byte)0xFF, (byte)0xFF, (byte)0xFF, (byte)0xFF, (byte)0xFF, (byte)0xFF
-    };
-
-    private static final byte[] defaultValueBlock = new byte[]{
-            (byte)0x00, (byte)0x00, (byte)0x00, (byte)0x00, // Little endian signed 4 byte value
-            (byte)0xFF, (byte)0xFF, (byte)0xFF, (byte)0xFF,  // Inverted signed
-            (byte)0x00, (byte)0x00, (byte)0x00, (byte)0x00, // Little endian signed 4 byte value 2 time
-            (byte)0x49, (byte)0xB6, (byte)0x49, (byte)0xB6 // Adr bytes
-    };
-
-    public NfcWrapper(MifareClassic mifareCard, Context context){
+    public NfcWrapper(MifareClassic mifareCard, Context context) {
         this.mifareCard = mifareCard;
         this.requestWrapper = new RequestWrapper(context);
     }
 
-    private LOGGED auth(int sector) throws IOException {
-        this.fetchKeys();
-        boolean authA;
-        boolean authB;
+    /**
+     * Tries one key at a time and resets the Crypto1 session after every failure. This is
+     * required by controllers that reject every command after a failed authentication.
+     */
+    private Authentication authenticateSector(int sector) throws IOException {
+        validateSector(sector);
+        fetchKeys();
 
-        authA = this.mifareCard.authenticateSectorWithKeyA(sector, MifareClassic.KEY_DEFAULT);
-        authB = this.mifareCard.authenticateSectorWithKeyB(sector, MifareClassic.KEY_DEFAULT);
-
-        if (authA && authB){
-            return LOGGED.DEFAULT_KEYS;
+        // Keep the order used by the verified fixed APK.
+        for (KeyCandidate candidate : authenticationCandidates(sector)) {
+            try {
+                if (authenticate(sector, candidate)) {
+                    return new Authentication(candidate.source);
+                }
+            } catch (IOException failure) {
+                reconnectAfterFailure(failure);
+                continue;
+            }
+            reconnect();
         }
-
-        authA = this.mifareCard.authenticateSectorWithKeyA(sector, this.sectorKeys[sector][0]);
-
-        if (!authA){
-            return LOGGED.UNAUTHORIZED;
-        }
-
-        authB = this.mifareCard.authenticateSectorWithKeyB(sector, this.sectorKeys[sector][1]);
-
-        if (!authB){
-            return LOGGED.UNAUTHORIZED;
-        }
-
-        return LOGGED.COMPUTED_KEYS;
+        return null;
     }
 
-    private boolean isSectorKeysEmpty(){
-        for (int sector = 0; sector < 16; sector++){
-            for (int key = 0; key < 2; key++){
-                for (int b = 0; b < Utils.keySize; b++){
-                    if (this.sectorKeys[sector][key][b] != 0){
-                        return false;
-                    }
-                }
+    private boolean authenticate(int sector, KeyCandidate candidate) throws IOException {
+        return candidate.type == KeyType.A
+                ? mifareCard.authenticateSectorWithKeyA(sector, candidate.key)
+                : mifareCard.authenticateSectorWithKeyB(sector, candidate.key);
+    }
+
+    private List<KeyCandidate> authenticationCandidates(int sector) {
+        List<KeyCandidate> candidates = new ArrayList<>(4);
+        addServerCandidate(candidates, sector, KEY_B_INDEX, KeyType.B);
+        addServerCandidate(candidates, sector, KEY_A_INDEX, KeyType.A);
+        addCandidate(candidates, new KeyCandidate(
+                KeyType.B, KeySource.DEFAULT, MifareClassic.KEY_DEFAULT));
+        addCandidate(candidates, new KeyCandidate(
+                KeyType.A, KeySource.DEFAULT, MifareClassic.KEY_DEFAULT));
+        return candidates;
+    }
+
+    private List<KeyCandidate> blockOperationCandidates(int sector) {
+        List<KeyCandidate> candidates = new ArrayList<>(4);
+        addServerCandidate(candidates, sector, KEY_A_INDEX, KeyType.A);
+        addServerCandidate(candidates, sector, KEY_B_INDEX, KeyType.B);
+        addCandidate(candidates, new KeyCandidate(
+                KeyType.A, KeySource.DEFAULT, MifareClassic.KEY_DEFAULT));
+        addCandidate(candidates, new KeyCandidate(
+                KeyType.B, KeySource.DEFAULT, MifareClassic.KEY_DEFAULT));
+        return candidates;
+    }
+
+    private void addServerCandidate(List<KeyCandidate> candidates, int sector, int keyIndex,
+                                    KeyType type) {
+        if (sector >= sectorKeys.length || sectorKeys[sector] == null
+                || keyIndex >= sectorKeys[sector].length) {
+            return;
+        }
+        byte[] key = sectorKeys[sector][keyIndex];
+        if (key != null && key.length == Utils.keySize) {
+            addCandidate(candidates, new KeyCandidate(type, KeySource.SERVER, key));
+        }
+    }
+
+    private static void addCandidate(List<KeyCandidate> candidates, KeyCandidate candidate) {
+        for (KeyCandidate existing : candidates) {
+            if (existing.type == candidate.type && Arrays.equals(existing.key, candidate.key)) {
+                return;
             }
         }
-
-        return true;
+        candidates.add(candidate);
     }
 
+    /** Reads block zero once, releases NFC during the network call, and caches validated keys. */
     public void fetchKeys() throws IOException {
-        if (!this.isSectorKeysEmpty()) {
+        if (keysLoaded) {
             return;
         }
 
-        boolean authenticated = this.mifareCard.authenticateSectorWithKeyA(0, MifareClassic.KEY_DEFAULT);
-        if (!authenticated) {
+        ensureConnected();
+        if (!mifareCard.authenticateSectorWithKeyA(0, MifareClassic.KEY_DEFAULT)) {
             throw new IOException("Could not authenticate sector 0 to read block 0");
         }
-        byte[] block0 = this.mifareCard.readBlock(0);
-        this.sectorKeys = this.requestWrapper.fetchKeys(block0);
+        byte[] block0 = mifareCard.readBlock(0);
+        closeQuietly();
+
+        byte[][][] fetchedKeys = requestWrapper.fetchKeys(block0);
+        validateFetchedKeys(fetchedKeys);
+        sectorKeys = fetchedKeys;
+        keysLoaded = true;
+        ensureConnected();
+    }
+
+    private static void validateFetchedKeys(byte[][][] fetchedKeys) throws IOException {
+        if (fetchedKeys == null || fetchedKeys.length < APPLICATION_SECTOR_COUNT) {
+            throw new IOException("The key service did not return all application sector keys");
+        }
+        for (int sector = 0; sector < APPLICATION_SECTOR_COUNT; sector++) {
+            byte[][] keys = fetchedKeys[sector];
+            if (keys == null || keys.length < 2
+                    || keys[KEY_A_INDEX] == null || keys[KEY_A_INDEX].length != Utils.keySize
+                    || keys[KEY_B_INDEX] == null || keys[KEY_B_INDEX].length != Utils.keySize) {
+                throw new IOException("Invalid keys returned for sector " + sector);
+            }
+        }
     }
 
     public static final class SectorDump {
@@ -126,39 +198,44 @@ public class NfcWrapper {
     }
 
     public List<SectorDump> dumpSectors() throws IOException {
-        this.mifareCard.connect();
-        List<SectorDump> dump = new ArrayList<>();
-        int sectorCount = this.mifareCard.getSectorCount();
+        ensureConnected();
+        try {
+            fetchKeys();
+            List<SectorDump> dump = new ArrayList<>();
+            for (int sector = 0; sector < mifareCard.getSectorCount(); sector++) {
+                Authentication authentication = authenticateSector(sector);
+                int firstBlock = mifareCard.sectorToBlock(sector);
+                int blockCount = mifareCard.getBlockCountInSector(sector);
+                byte[][] blocks = new byte[blockCount][];
 
-        for (int sector = 0; sector < sectorCount; sector++) {
-            LOGGED authenticated = this.auth(sector);
-            authenticated = this.auth(sector);
-            int firstBlockOfSector = this.mifareCard.sectorToBlock(sector);
-            int blockCount = this.mifareCard.getBlockCountInSector(sector);
-            byte[][] blocks = new byte[blockCount][];
-
-            if (authenticated != LOGGED.UNAUTHORIZED) {
-                for (int b = 0; b < blockCount; b++) {
-                    blocks[b] = this.mifareCard.readBlock(firstBlockOfSector + b);
+                if (authentication != null) {
+                    for (int blockIndex = 0; blockIndex < blockCount; blockIndex++) {
+                        blocks[blockIndex] = readBlockOrZeros(firstBlock + blockIndex);
+                    }
+                    injectKnownKeys(sector, authentication, blocks, blockCount - 1);
                 }
-
-                byte[] keyAB = MifareClassic.KEY_DEFAULT;
-                byte[] keyBB = MifareClassic.KEY_DEFAULT;
-
-                if (authenticated == LOGGED.COMPUTED_KEYS) {
-                    keyAB = this.sectorKeys[sector][0];
-                    keyBB = this.sectorKeys[sector][1];
-                }
-
-                System.arraycopy(keyAB, 0, blocks[3], 0, Utils.keySize);
-                System.arraycopy(keyBB, 0, blocks[3], 10, Utils.keySize);
+                dump.add(new SectorDump(sector, authentication != null, blocks));
             }
-
-            dump.add(new SectorDump(sector, authenticated != LOGGED.UNAUTHORIZED, blocks));
+            return dump;
+        } finally {
+            closeQuietly();
         }
+    }
 
-        this.mifareCard.close();
-        return dump;
+    private void injectKnownKeys(int sector, Authentication authentication, byte[][] blocks,
+                                 int trailerIndex) {
+        byte[] trailer = blocks[trailerIndex];
+        if (trailer == null || trailer.length != BLOCK_SIZE) {
+            return;
+        }
+        byte[] keyA = MifareClassic.KEY_DEFAULT;
+        byte[] keyB = MifareClassic.KEY_DEFAULT;
+        if (authentication.source == KeySource.SERVER && sector < sectorKeys.length) {
+            keyA = sectorKeys[sector][KEY_A_INDEX];
+            keyB = sectorKeys[sector][KEY_B_INDEX];
+        }
+        System.arraycopy(keyA, 0, trailer, 0, Utils.keySize);
+        System.arraycopy(keyB, 0, trailer, 10, Utils.keySize);
     }
 
     public static final class RawBlockEdit {
@@ -167,279 +244,554 @@ public class NfcWrapper {
         public final byte[] data;
 
         public RawBlockEdit(int sector, int blockIndexInSector, byte[] data) {
+            if (sector < 0 || blockIndexInSector < 0) {
+                throw new IllegalArgumentException("Sector and block index must be non-negative");
+            }
+            if (data == null || data.length != BLOCK_SIZE) {
+                throw new IllegalArgumentException("A MIFARE Classic block must contain 16 bytes");
+            }
             this.sector = sector;
             this.blockIndexInSector = blockIndexInSector;
-            this.data = data;
+            this.data = data.clone();
         }
     }
 
-
-    boolean logicW(int C1, int C2, int C3){
-        boolean isWritable = false;
-
-        if (C1 == 0 && C2 == 0 && C3 == 0){
-            isWritable = true;
-        }
-
-        else if (C1 == 1 && C2 == 0 && C3 == 0){
-            isWritable = true;
-        }
-
-        else if (C1 == 1 && C2 == 1 && C3 == 0){
-            isWritable = true;
-        }
-
-        else if (C1 == 0 && C2 == 1 && C3 == 1){
-            isWritable = true;
-        }
-
-        return isWritable;
+    static boolean logicW(int c1, int c2, int c3) {
+        return (c1 == 0 && c2 == 0 && c3 == 0)
+                || (c1 == 1 && c2 == 0 && c3 == 0)
+                || (c1 == 1 && c2 == 1 && c3 == 0)
+                || (c1 == 0 && c2 == 1 && c3 == 1);
     }
 
-    boolean isBlockWritable(byte[] sectorBlock, int blockNum){
-        boolean isWritable = false;
-        int[] bits2 = Utils.byte2ArrayBits(sectorBlock[7]);
-        int[] bits3 = Utils.byte2ArrayBits(sectorBlock[8]);
-        int C1, C2, C3;
-
-
-        switch (blockNum){
-            case 0:
-                C1 = bits2[3];
-                C2 = bits3[7];
-                C3 = bits3[3];
-                isWritable = logicW(C1, C2, C3);
-                break;
-
-            case 1:
-                C1 = bits2[2];
-                C2 = bits3[6];
-                C3 = bits3[2];
-                isWritable = logicW(C1, C2, C3);
-                break;
-
-            case 2:
-                C1 = bits2[1];
-                C2 = bits3[5];
-                C3 = bits3[1];
-                isWritable = logicW(C1, C2, C3);
-                break;
+    boolean isBlockWritable(byte[] trailer, int blockIndex) {
+        if (trailer == null || trailer.length != BLOCK_SIZE) {
+            return false;
         }
+        int group = accessGroupForBlock(blockIndex, 4);
+        if (group < 0 || group > 2) {
+            return false;
+        }
+        return logicW(bit(trailer[7], 4 + group), bit(trailer[8], group),
+                bit(trailer[8], 4 + group));
+    }
 
-        return isWritable;
+    private boolean isBlockWritable(byte[] trailer, int blockIndex, int blockCount) {
+        if (!hasValidAccessBits(trailer)) {
+            return false;
+        }
+        int group = accessGroupForBlock(blockIndex, blockCount);
+        if (group < 0 || group > 2) {
+            return false;
+        }
+        return logicW(bit(trailer[7], 4 + group), bit(trailer[8], group),
+                bit(trailer[8], 4 + group));
+    }
+
+    private static int accessGroupForBlock(int blockIndex, int blockCount) {
+        if (blockIndex < 0 || blockIndex >= blockCount - 1) {
+            return -1;
+        }
+        return blockCount <= 4 ? blockIndex : Math.min(blockIndex / 5, 2);
+    }
+
+    private static boolean hasValidAccessBits(byte[] trailer) {
+        if (trailer == null || trailer.length != BLOCK_SIZE) {
+            return false;
+        }
+        for (int group = 0; group < 4; group++) {
+            int c1 = bit(trailer[7], 4 + group);
+            int c2 = bit(trailer[8], group);
+            int c3 = bit(trailer[8], 4 + group);
+            if (bit(trailer[6], group) != (c1 ^ 1)
+                    || bit(trailer[6], 4 + group) != (c2 ^ 1)
+                    || bit(trailer[7], group) != (c3 ^ 1)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private static int bit(byte value, int position) {
+        return (value >>> position) & 1;
     }
 
     public void writeRawBlocks(List<RawBlockEdit> edits) throws IOException {
-        int last_auth = 0, block = 0;
-        this.mifareCard.connect();
-        LOGGED authenticated = this.auth(last_auth);
-        byte[] sector = this.mifareCard.readBlock(last_auth + 3);
-        for (RawBlockEdit edit : edits) {
-            if (edit.sector != last_auth){
-                this.mifareCard.close();
-                this.mifareCard.connect();
-                authenticated = this.auth(edit.sector);
-                last_auth = edit.sector;
-                block = this.mifareCard.sectorToBlock(edit.sector);
-                sector = this.mifareCard.readBlock(block + 3);
-            }
-
-            if (authenticated == LOGGED.UNAUTHORIZED) {
-                throw new IOException("Unauthorized, wrong keys");
-            }
-
-            if (block == 0 || (edit.blockIndexInSector != 3 && !this.isBlockWritable(sector, edit.blockIndexInSector))){
-                continue;
-            }
-
-            this.mifareCard.writeBlock(block + edit.blockIndexInSector, edit.data);
+        if (edits == null) {
+            throw new IllegalArgumentException("edits must not be null");
         }
-        this.mifareCard.close();
+        if (edits.isEmpty()) {
+            return;
+        }
 
+        ensureConnected();
+        try {
+            fetchKeys();
+            validateEdits(edits);
+            int activeSector = -1;
+            int firstBlock = -1;
+            int blockCount = 0;
+            byte[] trailer = null;
+
+            for (RawBlockEdit edit : edits) {
+                if (edit.sector != activeSector) {
+                    requireAuthentication(edit.sector);
+                    activeSector = edit.sector;
+                    firstBlock = mifareCard.sectorToBlock(activeSector);
+                    blockCount = mifareCard.getBlockCountInSector(activeSector);
+                    trailer = readBlockResilient(firstBlock + blockCount - 1);
+                }
+
+                int absoluteBlock = firstBlock + edit.blockIndexInSector;
+                int trailerIndex = blockCount - 1;
+                if (absoluteBlock == 0) {
+                    continue;
+                }
+                if (edit.blockIndexInSector != trailerIndex
+                        && !isBlockWritable(trailer, edit.blockIndexInSector, blockCount)) {
+                    continue;
+                }
+                writeBlockResilient(absoluteBlock, edit.data);
+                if (edit.blockIndexInSector == trailerIndex) {
+                    trailer = edit.data.clone();
+                }
+            }
+        } finally {
+            closeQuietly();
+        }
+    }
+
+    private void validateEdits(List<RawBlockEdit> edits) throws IOException {
+        int sectorCount = mifareCard.getSectorCount();
+        for (RawBlockEdit edit : edits) {
+            if (edit == null) {
+                throw new IOException("The write list contains an empty edit");
+            }
+            if (edit.sector >= sectorCount) {
+                throw new IOException("Sector " + edit.sector + " is not present on this card");
+            }
+            if (edit.blockIndexInSector >= mifareCard.getBlockCountInSector(edit.sector)) {
+                throw new IOException("Invalid block in sector " + edit.sector);
+            }
+        }
     }
 
     public void saveData(Customer customer) throws IOException {
-        this.mifareCard.connect();
-        this.writeName(customer.getName());
-        this.writeSurname(customer.getSurname());
-        this.writeCreationDate(customer.getCreationDate());
-        this.writeAmount(customer.getAmount());
-        this.rewriteAccessBits();
-        this.mifareCard.close();
-    }
-
-    public void recharge(int amount) throws IOException {
-        this.mifareCard.connect();
-        this.auth(amountSector);
-        int firstBlockOfSector = this.mifareCard.sectorToBlock(amountSector);
-
-        if (!this.isValidValueBlock(firstBlockOfSector) || !checkAccessBits(firstBlockOfSector+3)){
-            throw new InvalidValueBlock("This block looks tampered");
+        if (customer == null) {
+            throw new IllegalArgumentException("customer must not be null");
         }
-
-        this.mifareCard.writeBlock(firstBlockOfSector + 3, createWritableSectorTrailer());
-        this.mifareCard.increment(firstBlockOfSector, amount);
-        this.mifareCard.transfer(firstBlockOfSector);
-        this.mifareCard.writeBlock(firstBlockOfSector + 3, createSectorTrailer(amountSector));
-        this.mifareCard.close();
-    }
-
-    private boolean isValidValueBlock(int blockIndex) throws IOException {
-        byte[] block = this.mifareCard.readBlock(blockIndex);
-        if (block.length < 16) {
-            throw new IOException("Block read returned fewer than 16 bytes");
+        ensureConnected();
+        try {
+            fetchKeys();
+            requireApplicationCard();
+            writeText(NAME_SECTOR, customer.getName());
+            writeText(SURNAME_SECTOR, customer.getSurname());
+            writeCreationDate(customer.getCreationDate());
+            writeAmount(customer.getAmount());
+            rewriteAccessBits();
+        } finally {
+            closeQuietly();
         }
-
-        return (~block[0] == block[4]) &&
-                (~block[1] == block[5]) &&
-                (~block[2] == block[6]) &&
-                (~block[3] == block[7]) &&
-                (block[0] == block[8]) &&
-                (block[1] == block[9]) &&
-                (block[2] == block[10]) &&
-                (block[3] == block[11]) &&
-                (~block[12] == block[13]) &&
-                (~block[14] == block[15]) &&
-                (block[12] == block[14]);
     }
 
-    private boolean checkAccessBits(int trailerBlock) throws IOException {
-        byte[] block = this.mifareCard.readBlock(trailerBlock);
-
-        return (block[6] == accessBits[0]) &&
-                (block[7] == accessBits[1]) &&
-                (block[8] == accessBits[2]) &&
-                (block[9] == accessBits[3]);
-    }
-
-    public void buy(int amount) throws IOException {
-        this.mifareCard.connect();
-        this.auth(amountSector);
-        int firstBlockOfSector = this.mifareCard.sectorToBlock(amountSector);
-
-        if (!this.isValidValueBlock(firstBlockOfSector) || !checkAccessBits(firstBlockOfSector+3)){
-            throw new InvalidValueBlock("This block looks tampered");
-        }
-
-        this.mifareCard.writeBlock(firstBlockOfSector + 3, createWritableSectorTrailer());
-        this.mifareCard.decrement(firstBlockOfSector, amount);
-        this.mifareCard.transfer(firstBlockOfSector);
-        this.mifareCard.writeBlock(firstBlockOfSector + 3, createSectorTrailer(amountSector));
-        this.mifareCard.close();
-    }
-
-    public int readAmount() throws IOException {
-        this.mifareCard.connect();
-        this.auth(amountSector);
-        int firstBlockOfSector = this.mifareCard.sectorToBlock(amountSector);
-
-        if (!this.isValidValueBlock(firstBlockOfSector) || !checkAccessBits(firstBlockOfSector+3)){
-            throw new InvalidValueBlock("This block looks tampered");
-        }
-
-        byte[] block = this.mifareCard.readBlock(firstBlockOfSector);
-        this.mifareCard.close();
-        return ByteBuffer.wrap(block, 0, 4).order(ByteOrder.LITTLE_ENDIAN).getInt();
-    }
-
-    private void writeName(String name) throws IOException {
-       this.auth(nameSector);
-        byte[] nameB = Utils.stringToHex(name);
-        int firstBlockOfSector = this.mifareCard.sectorToBlock(nameSector);
-
-         for (int a = 0; a < 3; a++) {
-             byte[] chunk = Arrays.copyOfRange(nameB, 16 * a, 16 * a + 16);
-             this.mifareCard.writeBlock(firstBlockOfSector + a, chunk);
-         }
-    }
-
-    private void writeSurname(String surname) throws IOException {
-        this.auth(surnameSector);
-        byte[] nameB = Utils.stringToHex(surname);
-        int firstBlockOfSector = this.mifareCard.sectorToBlock(surnameSector);
-
-        for (int a = 0; a < 3; a++) {
-            byte[] chunk = Arrays.copyOfRange(nameB, 16 * a, 16 * a + 16);
-            this.mifareCard.writeBlock(firstBlockOfSector + a, chunk);
+    private void writeText(int sector, String value) throws IOException {
+        requireAuthentication(sector);
+        byte[] bytes = Utils.stringToHex(value);
+        int firstBlock = mifareCard.sectorToBlock(sector);
+        for (int index = 0; index < 3; index++) {
+            writeBlockResilient(firstBlock + index,
+                    Arrays.copyOfRange(bytes, BLOCK_SIZE * index, BLOCK_SIZE * (index + 1)));
         }
     }
 
     private void writeCreationDate(Calendar creationDate) throws IOException {
-        this.auth(creationDateSector);
-        int firstBlockOfSector = this.mifareCard.sectorToBlock(creationDateSector);
-        this.mifareCard.writeBlock(firstBlockOfSector, defaultValueBlock);
-        this.mifareCard.increment(firstBlockOfSector, creationDate.get(Calendar.YEAR));
-        this.mifareCard.transfer(firstBlockOfSector++);
-        this.mifareCard.writeBlock(firstBlockOfSector, defaultValueBlock);
-        this.mifareCard.increment(firstBlockOfSector, creationDate.get(Calendar.MONTH) + 1);
-        this.mifareCard.transfer(firstBlockOfSector++);
-        this.mifareCard.writeBlock(firstBlockOfSector, defaultValueBlock);
-        this.mifareCard.increment(firstBlockOfSector, creationDate.get(Calendar.DAY_OF_MONTH));
-        this.mifareCard.transfer(firstBlockOfSector);
+        if (creationDate == null) {
+            throw new IllegalArgumentException("creationDate must not be null");
+        }
+        requireAuthentication(CREATION_DATE_SECTOR);
+        int firstBlock = mifareCard.sectorToBlock(CREATION_DATE_SECTOR);
+        writeBlockResilient(firstBlock, createValueBlock(creationDate.get(Calendar.YEAR)));
+        writeBlockResilient(firstBlock + 1,
+                createValueBlock(creationDate.get(Calendar.MONTH) + 1));
+        writeBlockResilient(firstBlock + 2,
+                createValueBlock(creationDate.get(Calendar.DAY_OF_MONTH)));
     }
 
     private void writeAmount(int amount) throws IOException {
-        this.auth(amountSector);
-        int firstBlockOfSector = this.mifareCard.sectorToBlock(amountSector);
-        this.mifareCard.writeBlock(firstBlockOfSector, defaultValueBlock);
-        this.mifareCard.increment(firstBlockOfSector, amount);
-        this.mifareCard.transfer(firstBlockOfSector);
+        if (amount < 0) {
+            throw new IllegalArgumentException("amount must not be negative");
+        }
+        requireAuthentication(AMOUNT_SECTOR);
+        writeBlockResilient(mifareCard.sectorToBlock(AMOUNT_SECTOR), createValueBlock(amount));
     }
 
-    private byte[] createSectorTrailer(int sector) {
-        byte[] chunk = new byte[16];
-        System.arraycopy(this.sectorKeys[sector][0], 0, chunk, 0, Utils.keySize);
-        System.arraycopy(accessBits, 0, chunk, 6, 4);
-        System.arraycopy(this.sectorKeys[sector][1], 0, chunk, 10, Utils.keySize);
-
-        return chunk;
+    public void recharge(int amount) throws IOException {
+        if (amount < 0) {
+            throw new IllegalArgumentException("amount must not be negative");
+        }
+        changeAmount(amount, true);
     }
 
-    private byte[] createResetFactorySectorTrailer(){
-        byte[] chunk = new byte[16];
-
-        System.arraycopy(MifareClassic.KEY_DEFAULT, 0, chunk, 0, Utils.keySize);
-        System.arraycopy(resetFactoryAccessBits, 0, chunk, 6, 4);
-        System.arraycopy(MifareClassic.KEY_DEFAULT, 0, chunk, 10, Utils.keySize);
-
-        return chunk;
+    public void buy(int amount) throws IOException {
+        if (amount < 0) {
+            throw new IllegalArgumentException("amount must not be negative");
+        }
+        changeAmount(amount, false);
     }
 
-    private byte[] createWritableSectorTrailer(){
-        byte[] chunk = new byte[16];
-        System.arraycopy(MifareClassic.KEY_DEFAULT, 0, chunk, 0, Utils.keySize);
-        System.arraycopy(writableAccessBits, 0, chunk, 6, 4);
-        System.arraycopy(MifareClassic.KEY_DEFAULT, 0, chunk, 10, Utils.keySize);
-        return chunk;
+    private void changeAmount(int amount, boolean increment) throws IOException {
+        ensureConnected();
+        int trailerBlock = -1;
+        boolean writableTrailerInstalled = false;
+        IOException ioFailure = null;
+        RuntimeException runtimeFailure = null;
+        try {
+            fetchKeys();
+            requireApplicationCard();
+            requireAuthentication(AMOUNT_SECTOR);
+            int valueBlock = mifareCard.sectorToBlock(AMOUNT_SECTOR);
+            trailerBlock = valueBlock + mifareCard.getBlockCountInSector(AMOUNT_SECTOR) - 1;
+            byte[] original = readBlockResilient(valueBlock);
+            if (!isValidValueBlock(original) || !checkAccessBits(trailerBlock)) {
+                throw new InvalidValueBlock("This block looks tampered");
+            }
+
+            int currentValue = valueFromBlock(original);
+            int expectedValue;
+            try {
+                expectedValue = increment
+                        ? Math.addExact(currentValue, amount)
+                        : Math.subtractExact(currentValue, amount);
+            } catch (ArithmeticException overflow) {
+                throw new IOException("The balance operation overflows a signed integer", overflow);
+            }
+            if (expectedValue < 0) {
+                throw new IOException("The balance cannot become negative");
+            }
+
+            writeBlockResilient(trailerBlock, createWritableSectorTrailer());
+            writableTrailerInstalled = true;
+            valueOperationResilient(valueBlock, amount, increment);
+
+            byte[] updated = readBlockResilient(valueBlock);
+            if (!isValidValueBlock(updated) || valueFromBlock(updated) != expectedValue) {
+                throw new IOException("The balance write could not be verified");
+            }
+        } catch (IOException failure) {
+            ioFailure = failure;
+            throw failure;
+        } catch (RuntimeException failure) {
+            runtimeFailure = failure;
+            throw failure;
+        } finally {
+            if (writableTrailerInstalled) {
+                try {
+                    writeBlockResilient(trailerBlock, createSectorTrailer(AMOUNT_SECTOR));
+                } catch (IOException restoreFailure) {
+                    if (ioFailure != null) {
+                        ioFailure.addSuppressed(restoreFailure);
+                    } else if (runtimeFailure != null) {
+                        runtimeFailure.addSuppressed(restoreFailure);
+                    } else {
+                        closeQuietly();
+                        throw restoreFailure;
+                    }
+                }
+            }
+            closeQuietly();
+        }
+    }
+
+    public int readAmount() throws IOException {
+        ensureConnected();
+        try {
+            fetchKeys();
+            requireApplicationCard();
+            requireAuthentication(AMOUNT_SECTOR);
+            int valueBlock = mifareCard.sectorToBlock(AMOUNT_SECTOR);
+            int trailerBlock = valueBlock + mifareCard.getBlockCountInSector(AMOUNT_SECTOR) - 1;
+            byte[] block = readBlockResilient(valueBlock);
+            if (!isValidValueBlock(block) || !checkAccessBits(trailerBlock)) {
+                throw new InvalidValueBlock("This block looks tampered");
+            }
+            return valueFromBlock(block);
+        } finally {
+            closeQuietly();
+        }
+    }
+
+    private boolean checkAccessBits(int trailerBlock) throws IOException {
+        byte[] trailer = readBlockResilient(trailerBlock);
+        return trailer[6] == ACCESS_BITS[0]
+                && trailer[7] == ACCESS_BITS[1]
+                && trailer[8] == ACCESS_BITS[2]
+                && trailer[9] == ACCESS_BITS[3];
+    }
+
+    private static boolean isValidValueBlock(byte[] block) throws IOException {
+        if (block == null || block.length != BLOCK_SIZE) {
+            throw new IOException("Block read returned an invalid length");
+        }
+        for (int index = 0; index < 4; index++) {
+            if (block[index] != block[index + 8]
+                    || (byte) ~block[index] != block[index + 4]) {
+                return false;
+            }
+        }
+        return block[12] == block[14]
+                && (byte) ~block[12] == block[13]
+                && (byte) ~block[14] == block[15];
+    }
+
+    private static int valueFromBlock(byte[] block) {
+        return ByteBuffer.wrap(block, 0, 4).order(ByteOrder.LITTLE_ENDIAN).getInt();
+    }
+
+    private static byte[] createValueBlock(int value) {
+        byte[] block = new byte[BLOCK_SIZE];
+        byte[] encoded = ByteBuffer.allocate(4).order(ByteOrder.LITTLE_ENDIAN)
+                .putInt(value).array();
+        for (int index = 0; index < encoded.length; index++) {
+            block[index] = encoded[index];
+            block[index + 4] = (byte) ~encoded[index];
+            block[index + 8] = encoded[index];
+        }
+        block[12] = VALUE_BLOCK_ADDRESS;
+        block[13] = (byte) ~VALUE_BLOCK_ADDRESS;
+        block[14] = VALUE_BLOCK_ADDRESS;
+        block[15] = (byte) ~VALUE_BLOCK_ADDRESS;
+        return block;
+    }
+
+    private byte[] createSectorTrailer(int sector) throws IOException {
+        if (sector < 0 || sector >= sectorKeys.length) {
+            throw new IOException("No server keys available for sector " + sector);
+        }
+        byte[] trailer = new byte[BLOCK_SIZE];
+        System.arraycopy(sectorKeys[sector][KEY_A_INDEX], 0, trailer, 0, Utils.keySize);
+        System.arraycopy(ACCESS_BITS, 0, trailer, 6, ACCESS_BITS.length);
+        System.arraycopy(sectorKeys[sector][KEY_B_INDEX], 0, trailer, 10, Utils.keySize);
+        return trailer;
+    }
+
+    private static byte[] createResetFactorySectorTrailer() {
+        return createTrailer(MifareClassic.KEY_DEFAULT, RESET_FACTORY_ACCESS_BITS,
+                MifareClassic.KEY_DEFAULT);
+    }
+
+    private static byte[] createWritableSectorTrailer() {
+        return createTrailer(MifareClassic.KEY_DEFAULT, WRITABLE_ACCESS_BITS,
+                MifareClassic.KEY_DEFAULT);
+    }
+
+    private static byte[] createTrailer(byte[] keyA, byte[] accessBits, byte[] keyB) {
+        byte[] trailer = new byte[BLOCK_SIZE];
+        System.arraycopy(keyA, 0, trailer, 0, Utils.keySize);
+        System.arraycopy(accessBits, 0, trailer, 6, accessBits.length);
+        System.arraycopy(keyB, 0, trailer, 10, Utils.keySize);
+        return trailer;
     }
 
     private void rewriteAccessBits() throws IOException {
-        this.auth(0);
-        int trailerBlockOfSector = this.mifareCard.sectorToBlock(0) + 3;
-        this.mifareCard.writeBlock(trailerBlockOfSector, sector0AccessBits);
+        requireAuthentication(0);
+        int trailerBlock = mifareCard.sectorToBlock(0)
+                + mifareCard.getBlockCountInSector(0) - 1;
+        writeBlockResilient(trailerBlock, SECTOR_0_TRAILER);
 
-        for (int a = 1; a < 16; a++){
-            this.auth(a);
-            trailerBlockOfSector = this.mifareCard.sectorToBlock(a) + 3;
-            this.mifareCard.writeBlock(trailerBlockOfSector, createSectorTrailer(a));
+        for (int sector = 1; sector < APPLICATION_SECTOR_COUNT; sector++) {
+            requireAuthentication(sector);
+            trailerBlock = mifareCard.sectorToBlock(sector)
+                    + mifareCard.getBlockCountInSector(sector) - 1;
+            writeBlockResilient(trailerBlock, createSectorTrailer(sector));
         }
     }
 
     public void format() throws IOException {
-        this.mifareCard.connect();
-        for (int a = 0; a < 16; a++){
-            this.auth(a);
-            int firstBlockOfSector = this.mifareCard.sectorToBlock(a);
-            this.mifareCard.writeBlock(firstBlockOfSector + 3, createResetFactorySectorTrailer());
+        ensureConnected();
+        try {
+            fetchKeys();
+            byte[] emptyBlock = new byte[BLOCK_SIZE];
+            int sectorLimit = Math.min(APPLICATION_SECTOR_COUNT, mifareCard.getSectorCount());
+            for (int sector = 0; sector < sectorLimit; sector++) {
+                requireAuthentication(sector);
+                int firstBlock = mifareCard.sectorToBlock(sector);
+                int blockCount = mifareCard.getBlockCountInSector(sector);
+                int trailerBlock = firstBlock + blockCount - 1;
+                byte[] factoryTrailer = createResetFactorySectorTrailer();
 
-            // block 0 of sector 0 is the read-only manufacturer block
-            int firstDataBlock = (a == 0) ? firstBlockOfSector + 1 : firstBlockOfSector;
-            for (int block = firstDataBlock; block < firstBlockOfSector + 3; block++) {
-                this.mifareCard.writeBlock(block, new byte[16]);
+                writeBlockResilient(trailerBlock, factoryTrailer);
+                int firstDataBlock = firstBlock == 0 ? firstBlock + 1 : firstBlock;
+                for (int block = firstDataBlock; block < trailerBlock; block++) {
+                    writeBlockResilient(block, emptyBlock);
+                }
+                writeBlockResilient(trailerBlock, factoryTrailer);
             }
-
-            this.mifareCard.writeBlock(firstBlockOfSector + 3, createResetFactorySectorTrailer());
+        } finally {
+            closeQuietly();
         }
-        this.mifareCard.close();
+    }
+
+    private byte[] readBlockResilient(int block) throws IOException {
+        IOException failures;
+        try {
+            return mifareCard.readBlock(block);
+        } catch (IOException failure) {
+            failures = failure;
+        }
+
+        int sector = mifareCard.blockToSector(block);
+        for (KeyCandidate candidate : blockOperationCandidates(sector)) {
+            try {
+                reconnect();
+                if (authenticate(sector, candidate)) {
+                    return mifareCard.readBlock(block);
+                }
+            } catch (IOException failure) {
+                failures = appendFailure(failures, failure);
+            }
+        }
+        throw operationFailure("read", block, failures);
+    }
+
+    private byte[] readBlockOrZeros(int block) throws IOException {
+        try {
+            return readBlockResilient(block);
+        } catch (IOException failure) {
+            Log.w(TAG, "Block " + block + " is not readable with the available keys", failure);
+            return new byte[BLOCK_SIZE];
+        }
+    }
+
+    private void writeBlockResilient(int block, byte[] data) throws IOException {
+        IOException failures;
+        try {
+            mifareCard.writeBlock(block, data);
+            return;
+        } catch (IOException failure) {
+            failures = failure;
+        }
+
+        int sector = mifareCard.blockToSector(block);
+        for (KeyCandidate candidate : blockOperationCandidates(sector)) {
+            try {
+                reconnect();
+                if (authenticate(sector, candidate)) {
+                    mifareCard.writeBlock(block, data);
+                    return;
+                }
+            } catch (IOException failure) {
+                failures = appendFailure(failures, failure);
+            }
+        }
+        throw operationFailure("write", block, failures);
+    }
+
+    private void valueOperationResilient(int block, int amount, boolean increment)
+            throws IOException {
+        IOException failures;
+        try {
+            performValueOperation(block, amount, increment);
+            return;
+        } catch (IOException failure) {
+            failures = failure;
+        }
+
+        int sector = mifareCard.blockToSector(block);
+        for (KeyCandidate candidate : blockOperationCandidates(sector)) {
+            try {
+                reconnect();
+                if (authenticate(sector, candidate)) {
+                    performValueOperation(block, amount, increment);
+                    return;
+                }
+            } catch (IOException failure) {
+                failures = appendFailure(failures, failure);
+            }
+        }
+        throw operationFailure(increment ? "increment" : "decrement", block, failures);
+    }
+
+    private void performValueOperation(int block, int amount, boolean increment)
+            throws IOException {
+        if (increment) {
+            mifareCard.increment(block, amount);
+        } else {
+            mifareCard.decrement(block, amount);
+        }
+        mifareCard.transfer(block);
+    }
+
+    private void requireAuthentication(int sector) throws IOException {
+        if (authenticateSector(sector) == null) {
+            throw new IOException("Authentication failed for sector " + sector);
+        }
+    }
+
+    private void requireApplicationCard() throws IOException {
+        if (mifareCard.getSectorCount() < APPLICATION_SECTOR_COUNT) {
+            throw new IOException("This operation requires a MIFARE Classic card with 16 sectors");
+        }
+    }
+
+    private void validateSector(int sector) throws IOException {
+        if (sector < 0 || sector >= mifareCard.getSectorCount()) {
+            throw new IOException("Invalid sector " + sector);
+        }
+    }
+
+    private void ensureConnected() throws IOException {
+        if (!mifareCard.isConnected()) {
+            mifareCard.connect();
+        }
+    }
+
+    private void reconnectAfterFailure(IOException failure) throws IOException {
+        try {
+            reconnect();
+        } catch (IOException reconnectFailure) {
+            reconnectFailure.addSuppressed(failure);
+            throw reconnectFailure;
+        }
+    }
+
+    private void reconnect() throws IOException {
+        IOException closeFailure = null;
+        try {
+            mifareCard.close();
+        } catch (IOException failure) {
+            closeFailure = failure;
+        }
+        try {
+            mifareCard.connect();
+        } catch (IOException connectFailure) {
+            if (closeFailure != null) {
+                connectFailure.addSuppressed(closeFailure);
+            }
+            throw connectFailure;
+        }
+        if (closeFailure != null) {
+            Log.w(TAG, "NFC connection closed with an error before reconnecting", closeFailure);
+        }
+    }
+
+    private void closeQuietly() {
+        if (!mifareCard.isConnected()) {
+            return;
+        }
+        try {
+            mifareCard.close();
+        } catch (IOException failure) {
+            Log.w(TAG, "Could not close the NFC connection", failure);
+        }
+    }
+
+    private static IOException appendFailure(IOException current, IOException next) {
+        current.addSuppressed(next);
+        return current;
+    }
+
+    private static IOException operationFailure(String operation, int block, IOException cause) {
+        return new IOException(
+                "Could not " + operation + " block " + block + " with the available keys",
+                cause);
     }
 }

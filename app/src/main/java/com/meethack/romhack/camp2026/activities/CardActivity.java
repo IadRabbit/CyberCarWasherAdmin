@@ -24,6 +24,7 @@ import com.meethack.romhack.camp2026.R;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 
@@ -33,6 +34,18 @@ public class CardActivity extends NfcActivity {
     private static final String TAG = "CardActivity";
 
     private enum Mode { READ, WRITE }
+
+    private static final class BlockEditorMetadata {
+        final int sector;
+        final int blockIndex;
+        final byte[] originalData;
+
+        BlockEditorMetadata(int sector, int blockIndex, byte[] originalData) {
+            this.sector = sector;
+            this.blockIndex = blockIndex;
+            this.originalData = originalData.clone();
+        }
+    }
 
     private Mode mode = Mode.READ;
 
@@ -197,16 +210,31 @@ public class CardActivity extends NfcActivity {
         List<NfcWrapper.RawBlockEdit> edits = new ArrayList<>();
         boolean hasInvalidHex = false;
         for (EditText editor : blockEditors) {
-            int[] location = (int[]) editor.getTag();
+            BlockEditorMetadata metadata = (BlockEditorMetadata) editor.getTag();
             byte[] data = parseHex(editor.getText().toString());
             if (data == null) {
                 hasInvalidHex = true;
                 continue;
             }
-            edits.add(new NfcWrapper.RawBlockEdit(location[0], location[1], data));
+            if (!Arrays.equals(data, metadata.originalData)) {
+                edits.add(new NfcWrapper.RawBlockEdit(
+                        metadata.sector, metadata.blockIndex, data));
+            }
         }
 
-        boolean finalHasInvalidHex = hasInvalidHex;
+        if (hasInvalidHex) {
+            textWaitingStatus.setText(getString(R.string.read_error_invalid_hex));
+            textWaitingStatus.setTextColor(getColor(R.color.neon_red));
+            mode = Mode.READ;
+            return;
+        }
+        if (edits.isEmpty()) {
+            textWaitingStatus.setText(getString(R.string.read_status_no_changes));
+            textWaitingStatus.setTextColor(getColor(R.color.text_dim));
+            mode = Mode.READ;
+            return;
+        }
+
         startNfcAnimation();
         new Thread(() -> {
             NfcWrapper nfcWrapper = new NfcWrapper(mifare, this);
@@ -233,14 +261,8 @@ public class CardActivity extends NfcActivity {
             }
 
             onNfcResult(() -> {
-                String status = getString(R.string.read_status_write_success);
-                int colorRes = R.color.neon_green;
-                if (finalHasInvalidHex) {
-                    status = getString(R.string.read_error_invalid_hex);
-                    colorRes = R.color.neon_red;
-                }
-                textWaitingStatus.setText(status);
-                textWaitingStatus.setTextColor(getColor(colorRes));
+                textWaitingStatus.setText(getString(R.string.read_status_write_success));
+                textWaitingStatus.setTextColor(getColor(R.color.neon_green));
                 mode = Mode.READ;
             });
         }).start();
@@ -325,9 +347,15 @@ public class CardActivity extends NfcActivity {
         editor.setSingleLine(true);
         editor.setBackground(null);
         editor.setPadding(0, 0, 0, 0);
-        editor.setTag(new int[]{sector, blockIndex});
+        editor.setTag(new BlockEditorMetadata(sector, blockIndex, block));
         editor.setLayoutParams(new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+
+        if (sector == 0 && blockIndex == 0) {
+            editor.setTextColor(getColor(R.color.lcd_dim));
+            editor.setFocusable(false);
+            editor.setEnabled(false);
+        }
 
         // Flipper Zero-style editing: block system keyboard, use the on-screen hex keypad instead
         editor.setShowSoftInputOnFocus(false);

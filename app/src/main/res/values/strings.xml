@@ -52,7 +52,8 @@
     <string name="read_waiting_write_subtitle">waiting for NFC write…</string>
     <string name="read_status_writing">WRITING…</string>
     <string name="read_status_write_success">Bytes written successfully</string>
-    <string name="read_error_invalid_hex">Invalid hex in one or more blocks, skipped</string>
+    <string name="read_status_no_changes">No modified blocks to write</string>
+    <string name="read_error_invalid_hex">Invalid hex: no blocks were written</string>
 
     <!-- recharge -->
     <string name="recharge_header">Recharge card</string>
