@@ -114,7 +114,7 @@ public class RechargeActivity extends NfcActivity {
             NfcWrapper nfcWrapper = new NfcWrapper(mifare, this);
             try {
                 nfcWrapper.recharge(amount);
-            } catch (IOException e) {
+            } catch (IOException | SecurityException e) {
                 error.set(true);
                 Log.i(TAG, String.valueOf(e));
             }

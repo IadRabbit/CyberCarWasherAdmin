@@ -22,6 +22,7 @@ public class NfcWrapper {
         DEFAULT_KEYS,
         COMPUTED_KEYS,
     }
+    private static final int retryConnect = 5;
     private final MifareClassic mifareCard;
     private final RequestWrapper requestWrapper;
     private static final int nameSector = 15;
@@ -109,7 +110,7 @@ public class NfcWrapper {
         if (!authenticated) {
             throw new IOException("Could not authenticate sector 0 to read block 0");
         }
-        byte[] block0 = this.mifareCard.readBlock(0);
+        byte[] block0 = this.readTillTheEnd(0, 0);
         this.sectorKeys = this.requestWrapper.fetchKeys(block0);
     }
 
@@ -125,6 +126,39 @@ public class NfcWrapper {
         }
     }
 
+    private byte[] readTillTheEnd(int block, int sector) throws IOException {
+        int tries = 0;
+        while (tries < retryConnect){
+            try {
+                return this.mifareCard.readBlock(block);
+            }
+            catch (IOException e){
+                this.mifareCard.close();
+                tries++;
+                this.mifareCard.connect();
+                this.auth(sector);
+            }
+        }
+
+        return null;
+    }
+
+    private void writeTillTheEnd(int block, int sector, byte[] data) throws IOException {
+        int tries = 0;
+        while (tries < retryConnect){
+            try {
+                this.mifareCard.writeBlock(block, data);
+                return;
+            }
+            catch (IOException e){
+                this.mifareCard.close();
+                tries++;
+                this.mifareCard.connect();
+                this.auth(sector);
+            }
+        }
+    }
+
     public List<SectorDump> dumpSectors() throws IOException {
         this.mifareCard.connect();
         List<SectorDump> dump = new ArrayList<>();
@@ -132,14 +166,13 @@ public class NfcWrapper {
 
         for (int sector = 0; sector < sectorCount; sector++) {
             LOGGED authenticated = this.auth(sector);
-            authenticated = this.auth(sector);
             int firstBlockOfSector = this.mifareCard.sectorToBlock(sector);
             int blockCount = this.mifareCard.getBlockCountInSector(sector);
             byte[][] blocks = new byte[blockCount][];
 
             if (authenticated != LOGGED.UNAUTHORIZED) {
                 for (int b = 0; b < blockCount; b++) {
-                    blocks[b] = this.mifareCard.readBlock(firstBlockOfSector + b);
+                      blocks[b] = this.readTillTheEnd(firstBlockOfSector + b, 0);
                 }
 
                 byte[] keyAB = MifareClassic.KEY_DEFAULT;
@@ -233,7 +266,7 @@ public class NfcWrapper {
         int last_auth = 0, block = 0;
         this.mifareCard.connect();
         LOGGED authenticated = this.auth(last_auth);
-        byte[] sector = this.mifareCard.readBlock(last_auth + 3);
+        byte[] sector = this.readTillTheEnd(last_auth + 3, last_auth);
         for (RawBlockEdit edit : edits) {
             if (edit.sector != last_auth){
                 this.mifareCard.close();
@@ -241,7 +274,7 @@ public class NfcWrapper {
                 authenticated = this.auth(edit.sector);
                 last_auth = edit.sector;
                 block = this.mifareCard.sectorToBlock(edit.sector);
-                sector = this.mifareCard.readBlock(block + 3);
+                sector = this.readTillTheEnd(block + 3, edit.sector);
             }
 
             if (authenticated == LOGGED.UNAUTHORIZED) {
@@ -252,7 +285,7 @@ public class NfcWrapper {
                 continue;
             }
 
-            this.mifareCard.writeBlock(block + edit.blockIndexInSector, edit.data);
+            this.writeTillTheEnd(block + edit.blockIndexInSector, edit.sector, edit.data);
         }
         this.mifareCard.close();
 
@@ -277,10 +310,10 @@ public class NfcWrapper {
             throw new InvalidValueBlock("This block looks tampered");
         }
 
-        this.mifareCard.writeBlock(firstBlockOfSector + 3, createWritableSectorTrailer());
+        this.writeTillTheEnd(firstBlockOfSector + 3, amountSector, this.createWritableSectorTrailer());
         this.mifareCard.increment(firstBlockOfSector, amount);
         this.mifareCard.transfer(firstBlockOfSector);
-        this.mifareCard.writeBlock(firstBlockOfSector + 3, createSectorTrailer(amountSector));
+        this.writeTillTheEnd(firstBlockOfSector + 3, amountSector, this.createSectorTrailer(amountSector));
         this.mifareCard.close();
     }
 
@@ -321,10 +354,10 @@ public class NfcWrapper {
             throw new InvalidValueBlock("This block looks tampered");
         }
 
-        this.mifareCard.writeBlock(firstBlockOfSector + 3, createWritableSectorTrailer());
+        this.writeTillTheEnd(firstBlockOfSector + 3, amountSector, this.createWritableSectorTrailer());
         this.mifareCard.decrement(firstBlockOfSector, amount);
         this.mifareCard.transfer(firstBlockOfSector);
-        this.mifareCard.writeBlock(firstBlockOfSector + 3, createSectorTrailer(amountSector));
+        this.writeTillTheEnd(firstBlockOfSector + 3, amountSector, this.createSectorTrailer(amountSector));
         this.mifareCard.close();
     }
 
@@ -337,7 +370,7 @@ public class NfcWrapper {
             throw new InvalidValueBlock("This block looks tampered");
         }
 
-        byte[] block = this.mifareCard.readBlock(firstBlockOfSector);
+        byte[] block = this.readTillTheEnd(firstBlockOfSector, amountSector);
         this.mifareCard.close();
         return ByteBuffer.wrap(block, 0, 4).order(ByteOrder.LITTLE_ENDIAN).getInt();
     }
@@ -349,7 +382,7 @@ public class NfcWrapper {
 
          for (int a = 0; a < 3; a++) {
              byte[] chunk = Arrays.copyOfRange(nameB, 16 * a, 16 * a + 16);
-             this.mifareCard.writeBlock(firstBlockOfSector + a, chunk);
+             this.writeTillTheEnd(firstBlockOfSector + a, nameSector, chunk);
          }
     }
 
@@ -360,20 +393,20 @@ public class NfcWrapper {
 
         for (int a = 0; a < 3; a++) {
             byte[] chunk = Arrays.copyOfRange(nameB, 16 * a, 16 * a + 16);
-            this.mifareCard.writeBlock(firstBlockOfSector + a, chunk);
+            this.writeTillTheEnd(firstBlockOfSector + a, surnameSector, chunk);
         }
     }
 
     private void writeCreationDate(Calendar creationDate) throws IOException {
         this.auth(creationDateSector);
         int firstBlockOfSector = this.mifareCard.sectorToBlock(creationDateSector);
-        this.mifareCard.writeBlock(firstBlockOfSector, defaultValueBlock);
+        this.writeTillTheEnd(firstBlockOfSector, creationDateSector,defaultValueBlock);
         this.mifareCard.increment(firstBlockOfSector, creationDate.get(Calendar.YEAR));
         this.mifareCard.transfer(firstBlockOfSector++);
-        this.mifareCard.writeBlock(firstBlockOfSector, defaultValueBlock);
+        this.writeTillTheEnd(firstBlockOfSector, creationDateSector, defaultValueBlock);
         this.mifareCard.increment(firstBlockOfSector, creationDate.get(Calendar.MONTH) + 1);
         this.mifareCard.transfer(firstBlockOfSector++);
-        this.mifareCard.writeBlock(firstBlockOfSector, defaultValueBlock);
+        this.writeTillTheEnd(firstBlockOfSector, creationDateSector, defaultValueBlock);
         this.mifareCard.increment(firstBlockOfSector, creationDate.get(Calendar.DAY_OF_MONTH));
         this.mifareCard.transfer(firstBlockOfSector);
     }
@@ -381,7 +414,7 @@ public class NfcWrapper {
     private void writeAmount(int amount) throws IOException {
         this.auth(amountSector);
         int firstBlockOfSector = this.mifareCard.sectorToBlock(amountSector);
-        this.mifareCard.writeBlock(firstBlockOfSector, defaultValueBlock);
+        this.writeTillTheEnd(firstBlockOfSector, amountSector, defaultValueBlock);
         this.mifareCard.increment(firstBlockOfSector, amount);
         this.mifareCard.transfer(firstBlockOfSector);
     }
@@ -416,12 +449,12 @@ public class NfcWrapper {
     private void rewriteAccessBits() throws IOException {
         this.auth(0);
         int trailerBlockOfSector = this.mifareCard.sectorToBlock(0) + 3;
-        this.mifareCard.writeBlock(trailerBlockOfSector, sector0AccessBits);
+        this.writeTillTheEnd(trailerBlockOfSector, 0, sector0AccessBits);
 
         for (int a = 1; a < 16; a++){
             this.auth(a);
             trailerBlockOfSector = this.mifareCard.sectorToBlock(a) + 3;
-            this.mifareCard.writeBlock(trailerBlockOfSector, createSectorTrailer(a));
+            this.writeTillTheEnd(trailerBlockOfSector, a, this.createSectorTrailer(a));
         }
     }
 
@@ -430,15 +463,15 @@ public class NfcWrapper {
         for (int a = 0; a < 16; a++){
             this.auth(a);
             int firstBlockOfSector = this.mifareCard.sectorToBlock(a);
-            this.mifareCard.writeBlock(firstBlockOfSector + 3, createResetFactorySectorTrailer());
+            this.writeTillTheEnd(firstBlockOfSector + 3, a, this.createResetFactorySectorTrailer());
 
             // block 0 of sector 0 is the read-only manufacturer block
             int firstDataBlock = (a == 0) ? firstBlockOfSector + 1 : firstBlockOfSector;
             for (int block = firstDataBlock; block < firstBlockOfSector + 3; block++) {
-                this.mifareCard.writeBlock(block, new byte[16]);
+                this.writeTillTheEnd(block, a, new byte[16]);
             }
 
-            this.mifareCard.writeBlock(firstBlockOfSector + 3, createResetFactorySectorTrailer());
+            this.writeTillTheEnd(firstBlockOfSector + 3, a, this.createResetFactorySectorTrailer());
         }
         this.mifareCard.close();
     }

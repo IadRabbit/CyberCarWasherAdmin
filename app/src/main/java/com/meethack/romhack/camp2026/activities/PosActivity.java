@@ -167,7 +167,7 @@ public class PosActivity extends NfcActivity {
                 onNfcResult(() -> {
                     showResult(true, service, Money.format(newBalance));
                 });
-            } catch (IOException e) {
+            } catch (IOException | SecurityException e) {
                 Log.e(TAG, "NFC read/write error", e);
                 onNfcResult(() -> {
                     showWaitingState(getString(R.string.nfc_error_io), R.color.neon_red);

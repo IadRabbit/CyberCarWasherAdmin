@@ -126,7 +126,7 @@ public class CardActivity extends NfcActivity {
             List<NfcWrapper.SectorDump> dump;
             try {
                 dump = nfcWrapper.dumpSectors();
-            } catch (IOException e) {
+            } catch (IOException | SecurityException e) {
                 onNfcResult(() -> {
                     addLabelRow(getString(R.string.nfc_error_io), R.color.lcd_ink, false);
                     Log.e(TAG, String.valueOf(e));
