@@ -4,6 +4,8 @@ import static org.junit.Assert.assertEquals;
 
 import org.junit.Test;
 
+import java.io.IOException;
+
 /**
  * Verifies isBlockWritable()/logicW() against the NXP MIFARE Classic
  * access-condition table (MF1S50yyX datasheet, sector trailer bytes 6-8).
@@ -19,6 +21,9 @@ public class NfcWrapperAccessBitsTest {
     };
 
     private final NfcWrapper nfcWrapper = new NfcWrapper(null, null);
+
+    public NfcWrapperAccessBitsTest() throws IOException {
+    }
 
     @Test
     public void logicW_matchesNxpTable() {

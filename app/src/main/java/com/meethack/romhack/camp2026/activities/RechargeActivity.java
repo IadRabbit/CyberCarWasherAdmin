@@ -111,10 +111,17 @@ public class RechargeActivity extends NfcActivity {
 
         startNfcAnimation();
         new Thread(() -> {
-            NfcWrapper nfcWrapper = new NfcWrapper(mifare, this);
             try {
+                NfcWrapper nfcWrapper = new NfcWrapper(mifare, this);
                 nfcWrapper.recharge(amount);
-            } catch (IOException | SecurityException e) {
+            } catch (SecurityException e) {
+                Log.e(TAG, "Tag went out of date while writing", e);
+                onNfcResult(() -> {
+                    showWaitingState(getString(R.string.nfc_error_tag_moved), R.color.neon_red);
+                });
+                return;
+            }
+            catch (IOException e) {
                 error.set(true);
                 Log.i(TAG, String.valueOf(e));
             }

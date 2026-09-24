@@ -153,8 +153,8 @@ public class PosActivity extends NfcActivity {
 
         startNfcAnimation();
         new Thread(() -> {
-            NfcWrapper nfcWrapper = new NfcWrapper(mifare, this);
             try {
+                NfcWrapper nfcWrapper = new NfcWrapper(mifare, this);
                 int balance = nfcWrapper.readAmount();
                 if (balance < service.price) {
                     onNfcResult(() -> {
@@ -167,7 +167,13 @@ public class PosActivity extends NfcActivity {
                 onNfcResult(() -> {
                     showResult(true, service, Money.format(newBalance));
                 });
-            } catch (IOException | SecurityException e) {
+            } catch (SecurityException e) {
+                Log.e(TAG, "Tag went out of date during charge", e);
+                onNfcResult(() -> {
+                    showWaitingState(getString(R.string.nfc_error_tag_moved), R.color.neon_red);
+                });
+            }
+            catch (IOException e) {
                 Log.e(TAG, "NFC read/write error", e);
                 onNfcResult(() -> {
                     showWaitingState(getString(R.string.nfc_error_io), R.color.neon_red);

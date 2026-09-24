@@ -55,10 +55,16 @@ public class CardFormatActivity extends NfcActivity {
 
         startNfcAnimation();
         new Thread(() -> {
-            NfcWrapper nfcWrapper = new NfcWrapper(mifare, this);
             try {
+                NfcWrapper nfcWrapper = new NfcWrapper(mifare, this);
                 nfcWrapper.format();
-            } catch (IOException | SecurityException e) {
+            } catch (SecurityException e) {
+                Log.e(TAG, "Tag went out of date while formatting", e);
+                onNfcResult(() -> {
+                    showStatus(getString(R.string.nfc_error_tag_moved), R.color.neon_red);
+                });
+                return;
+            } catch (IOException e) {
                 onNfcResult(() -> {
                     showStatus(getString(R.string.nfc_error_io), R.color.neon_red);
                 });

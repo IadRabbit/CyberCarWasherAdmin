@@ -122,11 +122,19 @@ public class CardActivity extends NfcActivity {
 
         startNfcAnimation();
         new Thread(() -> {
-            NfcWrapper nfcWrapper = new NfcWrapper(mifare, this);
             List<NfcWrapper.SectorDump> dump;
             try {
+                NfcWrapper nfcWrapper = new NfcWrapper(mifare, this);
                 dump = nfcWrapper.dumpSectors();
-            } catch (IOException | SecurityException e) {
+            } catch (SecurityException e) {
+                Log.e(TAG, "Tag went out of date while reading", e);
+                onNfcResult(() -> {
+                    addLabelRow(getString(R.string.nfc_error_tag_moved), R.color.lcd_ink, false);
+                    showData();
+                });
+                return;
+            }
+            catch (IOException e) {
                 onNfcResult(() -> {
                     addLabelRow(getString(R.string.nfc_error_io), R.color.lcd_ink, false);
                     Log.e(TAG, String.valueOf(e));
@@ -209,9 +217,18 @@ public class CardActivity extends NfcActivity {
         boolean finalHasInvalidHex = hasInvalidHex;
         startNfcAnimation();
         new Thread(() -> {
-            NfcWrapper nfcWrapper = new NfcWrapper(mifare, this);
             try {
+                NfcWrapper nfcWrapper = new NfcWrapper(mifare, this);
                 nfcWrapper.writeRawBlocks(edits);
+            } catch (SecurityException e) {
+                Log.e(TAG, "Tag went out of date while writing", e);
+
+                onNfcResult(() -> {
+                    textWaitingStatus.setText(getString(R.string.nfc_error_tag_moved));
+                    textWaitingStatus.setTextColor(getColor(R.color.neon_red));
+                    mode = Mode.READ;
+                });
+                return;
             } catch (IOException e) {
                 Log.e(TAG, String.valueOf(e));
 

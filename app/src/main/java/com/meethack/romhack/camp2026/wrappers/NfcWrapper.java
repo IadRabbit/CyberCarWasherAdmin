@@ -22,7 +22,7 @@ public class NfcWrapper {
         DEFAULT_KEYS,
         COMPUTED_KEYS,
     }
-    private static final int retryConnect = 5;
+    private static final int retryConnect = 1;
     private final MifareClassic mifareCard;
     private final RequestWrapper requestWrapper;
     private static final int nameSector = 15;
@@ -55,13 +55,15 @@ public class NfcWrapper {
             (byte)0x49, (byte)0xB6, (byte)0x49, (byte)0xB6 // Adr bytes
     };
 
-    public NfcWrapper(MifareClassic mifareCard, Context context){
+    public NfcWrapper(MifareClassic mifareCard, Context context) throws IOException {
         this.mifareCard = mifareCard;
         this.requestWrapper = new RequestWrapper(context);
+        this.mifareCard.connect();
+        this.fetchKeys();
+        this.mifareCard.close();
     }
 
     private LOGGED auth(int sector) throws IOException {
-        this.fetchKeys();
         boolean authA;
         boolean authB;
 
@@ -87,30 +89,12 @@ public class NfcWrapper {
         return LOGGED.COMPUTED_KEYS;
     }
 
-    private boolean isSectorKeysEmpty(){
-        for (int sector = 0; sector < 16; sector++){
-            for (int key = 0; key < 2; key++){
-                for (int b = 0; b < Utils.keySize; b++){
-                    if (this.sectorKeys[sector][key][b] != 0){
-                        return false;
-                    }
-                }
-            }
-        }
-
-        return true;
-    }
-
-    public void fetchKeys() throws IOException {
-        if (!this.isSectorKeysEmpty()) {
-            return;
-        }
-
+    private void fetchKeys() throws IOException {
         boolean authenticated = this.mifareCard.authenticateSectorWithKeyA(0, MifareClassic.KEY_DEFAULT);
         if (!authenticated) {
             throw new IOException("Could not authenticate sector 0 to read block 0");
         }
-        byte[] block0 = this.readTillTheEnd(0, 0);
+        byte[] block0 = this.mifareCard.readBlock(0);
         this.sectorKeys = this.requestWrapper.fetchKeys(block0);
     }
 
@@ -139,7 +123,6 @@ public class NfcWrapper {
                 this.auth(sector);
             }
         }
-
         return null;
     }
 
@@ -160,11 +143,10 @@ public class NfcWrapper {
     }
 
     public List<SectorDump> dumpSectors() throws IOException {
-        this.mifareCard.connect();
         List<SectorDump> dump = new ArrayList<>();
-        int sectorCount = this.mifareCard.getSectorCount();
+        this.mifareCard.connect();
 
-        for (int sector = 0; sector < sectorCount; sector++) {
+        for (int sector = 0; sector < 16; sector++) {
             LOGGED authenticated = this.auth(sector);
             int firstBlockOfSector = this.mifareCard.sectorToBlock(sector);
             int blockCount = this.mifareCard.getBlockCountInSector(sector);
@@ -172,7 +154,7 @@ public class NfcWrapper {
 
             if (authenticated != LOGGED.UNAUTHORIZED) {
                 for (int b = 0; b < blockCount; b++) {
-                      blocks[b] = this.readTillTheEnd(firstBlockOfSector + b, 0);
+                      blocks[b] = this.readTillTheEnd(firstBlockOfSector + b, sector);
                 }
 
                 byte[] keyAB = MifareClassic.KEY_DEFAULT;
@@ -189,7 +171,6 @@ public class NfcWrapper {
 
             dump.add(new SectorDump(sector, authenticated != LOGGED.UNAUTHORIZED, blocks));
         }
-
         this.mifareCard.close();
         return dump;
     }
@@ -267,6 +248,8 @@ public class NfcWrapper {
         this.mifareCard.connect();
         LOGGED authenticated = this.auth(last_auth);
         byte[] sector = this.readTillTheEnd(last_auth + 3, last_auth);
+        this.mifareCard.close();
+        this.mifareCard.connect();
         for (RawBlockEdit edit : edits) {
             if (edit.sector != last_auth){
                 this.mifareCard.close();
@@ -288,7 +271,6 @@ public class NfcWrapper {
             this.writeTillTheEnd(block + edit.blockIndexInSector, edit.sector, edit.data);
         }
         this.mifareCard.close();
-
     }
 
     public void saveData(Customer customer) throws IOException {
@@ -376,7 +358,7 @@ public class NfcWrapper {
     }
 
     private void writeName(String name) throws IOException {
-       this.auth(nameSector);
+        this.auth(nameSector);
         byte[] nameB = Utils.stringToHex(name);
         int firstBlockOfSector = this.mifareCard.sectorToBlock(nameSector);
 

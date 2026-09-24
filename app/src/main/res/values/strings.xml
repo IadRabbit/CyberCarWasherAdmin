@@ -85,7 +85,8 @@
     <!-- shared NFC status -->
     <string name="nfc_error_not_mifare">Incompatible card (not MIFARE Classic)</string>
     <string name="nfc_error_auth">Authentication failed on sector</string>
-    <string name="nfc_error_io">Error communicating with the card</string>
+    <string name="nfc_error_io">Error communicating with the card, tap it again</string>
+    <string name="nfc_error_tag_moved">Card was moved — please tap it again</string>
     <string name="nfc_error_fetch_keys">Error fetching keys for the card</string>
     <string name="nfc_unavailable">NFC not available on this device</string>
     <string name="nfc_error_writing_customer_data">Failed to communicate with the card</string>
