@@ -22,7 +22,7 @@ public class NfcWrapper {
         DEFAULT_KEYS,
         COMPUTED_KEYS,
     }
-    private static final int retryConnect = 1;
+    private static final int retryConnect = 3;
     private final MifareClassic mifareCard;
     private final RequestWrapper requestWrapper;
     private static final int nameSector = 15;
@@ -188,7 +188,7 @@ public class NfcWrapper {
     }
 
 
-    boolean logicW(int C1, int C2, int C3){
+    static boolean logicW(int C1, int C2, int C3){
         boolean isWritable = false;
 
         if (C1 == 0 && C2 == 0 && C3 == 0){
@@ -210,7 +210,7 @@ public class NfcWrapper {
         return isWritable;
     }
 
-    boolean isBlockWritable(byte[] sectorBlock, int blockNum){
+    static boolean isBlockWritable(byte[] sectorBlock, int blockNum){
         boolean isWritable = false;
         int[] bits2 = Utils.byte2ArrayBits(sectorBlock[7]);
         int[] bits3 = Utils.byte2ArrayBits(sectorBlock[8]);
