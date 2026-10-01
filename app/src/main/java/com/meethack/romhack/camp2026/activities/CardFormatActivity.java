@@ -60,25 +60,17 @@ public class CardFormatActivity extends NfcActivity {
                 nfcWrapper.format();
             } catch (SecurityException e) {
                 Log.e(TAG, "Tag went out of date while formatting", e);
-                onNfcResult(() -> {
-                    showStatus(getString(R.string.nfc_error_tag_moved), R.color.neon_red);
-                });
+                onNfcResult(() -> showStatus(getString(R.string.nfc_error_tag_moved), R.color.neon_red));
                 return;
             } catch (IOException e) {
-                onNfcResult(() -> {
-                    showStatus(getString(R.string.nfc_error_io), R.color.neon_red);
-                });
+                onNfcResult(() -> showStatus(getString(R.string.nfc_error_io), R.color.neon_red));
                 return;
             } catch (FailedToFetchKeys e) {
                 Log.e(TAG, "Cannot fetch keys for card", e);
-                onNfcResult(() -> {
-                    showStatus(getString(R.string.nfc_error_fetch_keys), R.color.neon_red);
-                });
+                onNfcResult(() -> showStatus(getString(R.string.nfc_error_fetch_keys), R.color.neon_red));
                 return;
             }
-            onNfcResult(() -> {
-                showStatus(getString(R.string.format_status_success), R.color.neon_green);
-            });
+            onNfcResult(() -> showStatus(getString(R.string.format_status_success), R.color.neon_green));
         }).start();
     }
 

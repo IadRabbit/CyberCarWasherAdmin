@@ -1,6 +1,7 @@
 package com.meethack.romhack.camp2026.wrappers;
 
-import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
 
 import org.junit.Test;
 
@@ -21,14 +22,10 @@ public class NfcWrapperAccessBitsTest {
     @Test
     public void logicW_matchesNxpTable() {
         for (int[] c : WRITABLE_COMBINATIONS) {
-            assertEquals(
-                    "C1=" + c[0] + " C2=" + c[1] + " C3=" + c[2] + " should be writable",
-                    true, NfcWrapper.logicW(c[0], c[1], c[2]));
+            assertTrue("C1=" + c[0] + " C2=" + c[1] + " C3=" + c[2] + " should be writable", NfcWrapper.logicW(c[0], c[1], c[2]));
         }
         for (int[] c : NOT_WRITABLE_COMBINATIONS) {
-            assertEquals(
-                    "C1=" + c[0] + " C2=" + c[1] + " C3=" + c[2] + " should NOT be writable",
-                    false, NfcWrapper.logicW(c[0], c[1], c[2]));
+            assertFalse("C1=" + c[0] + " C2=" + c[1] + " C3=" + c[2] + " should NOT be writable", NfcWrapper.logicW(c[0], c[1], c[2]));
         }
     }
 
@@ -37,17 +34,13 @@ public class NfcWrapperAccessBitsTest {
         for (int blockNum = 0; blockNum <= 2; blockNum++) {
             for (int[] c : WRITABLE_COMBINATIONS) {
                 byte[] trailer = buildTrailer(blockNum, c[0], c[1], c[2]);
-                assertEquals(
-                        "block " + blockNum + " with C1=" + c[0] + " C2=" + c[1] + " C3=" + c[2]
-                                + " should be writable",
-                        true, NfcWrapper.isBlockWritable(trailer, blockNum));
+                assertTrue("block " + blockNum + " with C1=" + c[0] + " C2=" + c[1] + " C3=" + c[2]
+                        + " should be writable", NfcWrapper.isBlockWritable(trailer, blockNum));
             }
             for (int[] c : NOT_WRITABLE_COMBINATIONS) {
                 byte[] trailer = buildTrailer(blockNum, c[0], c[1], c[2]);
-                assertEquals(
-                        "block " + blockNum + " with C1=" + c[0] + " C2=" + c[1] + " C3=" + c[2]
-                                + " should NOT be writable",
-                        false, NfcWrapper.isBlockWritable(trailer, blockNum));
+                assertFalse("block " + blockNum + " with C1=" + c[0] + " C2=" + c[1] + " C3=" + c[2]
+                        + " should NOT be writable", NfcWrapper.isBlockWritable(trailer, blockNum));
             }
         }
     }
@@ -58,8 +51,8 @@ public class NfcWrapperAccessBitsTest {
         byte[] trailer = buildTrailer(0, 1, 1, 1);
         setAccessBits(trailer, 1, 0, 0, 0);
 
-        assertEquals(false, NfcWrapper.isBlockWritable(trailer, 0));
-        assertEquals(true, NfcWrapper.isBlockWritable(trailer, 1));
+        assertFalse(NfcWrapper.isBlockWritable(trailer, 0));
+        assertTrue(NfcWrapper.isBlockWritable(trailer, 1));
     }
 
     /**

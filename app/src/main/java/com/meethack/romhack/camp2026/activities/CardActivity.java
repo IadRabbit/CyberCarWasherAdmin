@@ -11,6 +11,7 @@ import android.view.inputmethod.InputMethodManager;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.LinearLayout;
+import android.widget.ScrollView;
 import android.widget.TextView;
 
 import androidx.activity.EdgeToEdge;
@@ -39,7 +40,7 @@ public class CardActivity extends NfcActivity {
     private View groupWaiting;
     private View screenBox;
     private View groupInfo;
-    private View groupData;
+    private ScrollView groupData;
     private TextView tabInfo;
     private TextView tabData;
     private TextView buttonHintAction;
@@ -50,6 +51,7 @@ public class CardActivity extends NfcActivity {
     private TextView textSak;
     private TextView textType;
     private LinearLayout dumpContainer;
+    private int dumpContainerBasePaddingBottom;
     private View hexKeypad;
     private EditText focusedEditor;
 
@@ -79,6 +81,7 @@ public class CardActivity extends NfcActivity {
         textSak = findViewById(R.id.textSak);
         textType = findViewById(R.id.textType);
         dumpContainer = findViewById(R.id.dumpContainer);
+        dumpContainerBasePaddingBottom = dumpContainer.getPaddingBottom();
         hexKeypad = findViewById(R.id.hexKeypad);
         findViewById(R.id.buttonBack).setOnClickListener(v -> finish());
         tabInfo.setOnClickListener(v -> showInfo());
@@ -321,16 +324,18 @@ public class CardActivity extends NfcActivity {
     }
 
     private void addBlockRow(String label, int sector, int blockIndex, byte[] block) {
+        // Stacked (label above value) instead of side-by-side: a full 16-byte hex dump
+        // ("XX XX ... XX", 47 chars) doesn't fit next to a label on most phone widths,
+        // which forced horizontal scrolling to see the trailing bytes.
         LinearLayout row = new LinearLayout(this);
-        row.setOrientation(LinearLayout.HORIZONTAL);
-        row.setGravity(android.view.Gravity.CENTER_VERTICAL);
-        row.setPadding(12, 1, 0, 1);
+        row.setOrientation(LinearLayout.VERTICAL);
+        row.setPadding(12, 2, 12, 2);
 
         TextView labelView = new TextView(this);
-        labelView.setText(label + ": ");
+        labelView.setText(label);
         labelView.setTextColor(getColor(R.color.lcd_dim));
         labelView.setTypeface(android.graphics.Typeface.MONOSPACE);
-        labelView.setTextSize(12);
+        labelView.setTextSize(10);
         row.addView(labelView);
 
         EditText editor = new EditText(this);
@@ -339,7 +344,10 @@ public class CardActivity extends NfcActivity {
         editor.setTypeface(android.graphics.Typeface.MONOSPACE);
         editor.setTextSize(12);
         editor.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_CAP_CHARACTERS);
-        editor.setSingleLine(true);
+        // Intentionally not setSingleLine(true): that also turns on horizontal scrolling,
+        // which (a) forces a manual side-scroll to see the trailing bytes and (b) disables
+        // TextView auto-sizing outright. Letting the 47-char hex string wrap onto a second
+        // line instead keeps every byte visible without scrolling.
         editor.setBackground(null);
         editor.setPadding(0, 0, 0, 0);
         editor.setTag(new int[]{sector, blockIndex});
@@ -431,10 +439,43 @@ public class CardActivity extends NfcActivity {
 
     private void showKeypad() {
         hexKeypad.setVisibility(View.VISIBLE);
+        // The keypad floats over the bottom of the screen, covering whatever row is
+        // scrolled underneath it (most notably sector 15's rows, which are the last
+        // ones in the dump). Pad the scrollable content so it can scroll clear above
+        // the keypad, then bring the focused row into view once the keypad is measured.
+        hexKeypad.post(() -> {
+            int keypadHeight = hexKeypad.getHeight();
+            if (dumpContainer.getPaddingBottom() != keypadHeight) {
+                dumpContainer.setPadding(dumpContainer.getPaddingLeft(), dumpContainer.getPaddingTop(),
+                        dumpContainer.getPaddingRight(), keypadHeight);
+                // setPadding() only requests a layout pass; it hasn't grown the ScrollView's
+                // scroll range yet. Wait for that layout before scrolling, otherwise the scroll
+                // gets clamped to the old (unpadded) range and can't reach rows further down.
+                dumpContainer.post(this::scrollFocusedEditorAboveKeypad);
+            } else {
+                scrollFocusedEditorAboveKeypad();
+            }
+        });
+    }
+
+    private void scrollFocusedEditorAboveKeypad() {
+        if (focusedEditor == null) {
+            return;
+        }
+        int[] editorLocation = new int[2];
+        focusedEditor.getLocationOnScreen(editorLocation);
+        int[] keypadLocation = new int[2];
+        hexKeypad.getLocationOnScreen(keypadLocation);
+        int overlap = (editorLocation[1] + focusedEditor.getHeight()) - keypadLocation[1];
+        if (overlap > 0) {
+            groupData.smoothScrollBy(0, overlap + focusedEditor.getHeight());
+        }
     }
 
     private void hideKeypad() {
         hexKeypad.setVisibility(View.GONE);
+        dumpContainer.setPadding(dumpContainer.getPaddingLeft(), dumpContainer.getPaddingTop(),
+                dumpContainer.getPaddingRight(), dumpContainerBasePaddingBottom);
         focusedEditor = null;
     }
 

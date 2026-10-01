@@ -134,9 +134,7 @@ public class CreateCustomerActivity extends NfcActivity {
                 nfcWrapper.saveData(customerToWrite);
             } catch (SecurityException e) {
                 Log.e(TAG, "Tag went out of date while writing", e);
-                onNfcResult(() -> {
-                    showWaitingState(getString(R.string.nfc_error_tag_moved), R.color.neon_red);
-                });
+                onNfcResult(() -> showWaitingState(getString(R.string.nfc_error_tag_moved), R.color.neon_red));
                 return;
             }
             catch (IOException e) {
@@ -145,16 +143,12 @@ public class CreateCustomerActivity extends NfcActivity {
             }
             catch (FailedToFetchKeys e){
                 Log.e(TAG, "Cannot fetch keys for card", e);
-                onNfcResult(() -> {
-                    showWaitingState(getString(R.string.nfc_error_fetch_keys), R.color.neon_red);
-                });
+                onNfcResult(() -> showWaitingState(getString(R.string.nfc_error_fetch_keys), R.color.neon_red));
                 return;
             }
-            onNfcResult(() -> {
-                showWaitingState(
-                        error.get() ? getString(R.string.nfc_error_writing_customer_data) : getString(R.string.create_status_success),
-                        error.get() ? R.color.neon_red : R.color.neon_green);
-            });
+            onNfcResult(() -> showWaitingState(
+                    error.get() ? getString(R.string.nfc_error_writing_customer_data) : getString(R.string.create_status_success),
+                    error.get() ? R.color.neon_red : R.color.neon_green));
         }).start();
     }
 

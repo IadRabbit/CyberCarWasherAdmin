@@ -215,6 +215,14 @@
             android:textSize="24sp"
             tools:text="New balance: € 18.50" />
 
+        <TextView
+            android:id="@+id/textResultFlag"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:fontFamily="sans-serif-black"
+            android:textSize="17sp"
+            tools:text="FLAG:" />
+
         <com.google.android.material.button.MaterialButton
             android:id="@+id/buttonResultPrimary"
             style="@style/Widget.MaterialComponents.Button.OutlinedButton"

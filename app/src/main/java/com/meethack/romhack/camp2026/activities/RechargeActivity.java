@@ -116,9 +116,7 @@ public class RechargeActivity extends NfcActivity {
                 nfcWrapper.recharge(amount);
             } catch (SecurityException e) {
                 Log.e(TAG, "Tag went out of date while writing", e);
-                onNfcResult(() -> {
-                    showWaitingState(getString(R.string.nfc_error_tag_moved), R.color.neon_red);
-                });
+                onNfcResult(() -> showWaitingState(getString(R.string.nfc_error_tag_moved), R.color.neon_red));
                 return;
             }
             catch (IOException e) {
@@ -127,23 +125,17 @@ public class RechargeActivity extends NfcActivity {
             }
             catch (FailedToFetchKeys e){
                 Log.e(TAG, "Cannot fetch keys for card", e);
-                onNfcResult(() -> {
-                    showWaitingState(getString(R.string.nfc_error_fetch_keys), R.color.neon_red);
-                });
+                onNfcResult(() -> showWaitingState(getString(R.string.nfc_error_fetch_keys), R.color.neon_red));
                 return;
             }
             catch (InvalidValueBlock e){
                 Log.e(TAG, e.toString());
-                onNfcResult(() -> {
-                    showWaitingState(getString(R.string.pos_error_tampered_block), R.color.neon_red);
-                });
+                onNfcResult(() -> showWaitingState(getString(R.string.pos_error_tampered_block), R.color.neon_red));
                 return;
             }
-            onNfcResult(() -> {
-                showWaitingState(
-                        error.get() ? getString(R.string.nfc_error_writing_customer_data) : getString(R.string.recharge_status_success),
-                        error.get() ? R.color.neon_red : R.color.neon_green);
-            });
+            onNfcResult(() -> showWaitingState(
+                    error.get() ? getString(R.string.nfc_error_writing_customer_data) : getString(R.string.recharge_status_success),
+                    error.get() ? R.color.neon_red : R.color.neon_green));
         }).start();
     }
 

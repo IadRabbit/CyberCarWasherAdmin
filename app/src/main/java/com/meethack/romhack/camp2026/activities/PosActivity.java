@@ -37,6 +37,7 @@ public class PosActivity extends NfcActivity {
     private TextView textResultClient;
     private TextView textResultService;
     private TextView textResultBalance;
+    private TextView textResultFlAG;
     private TextView buttonResultPrimary;
     private View buttonConfirm;
 
@@ -74,6 +75,7 @@ public class PosActivity extends NfcActivity {
         textResultClient = findViewById(R.id.textResultClient);
         textResultService = findViewById(R.id.textResultService);
         textResultBalance = findViewById(R.id.textResultBalance);
+        textResultFlAG = findViewById(R.id.textResultFlag);
         buttonResultPrimary = findViewById(R.id.buttonResultPrimary);
         buttonConfirm = findViewById(R.id.buttonConfirm);
 
@@ -157,39 +159,27 @@ public class PosActivity extends NfcActivity {
                 NfcWrapper nfcWrapper = new NfcWrapper(mifare, this);
                 int balance = nfcWrapper.readAmount();
                 if (balance < service.price) {
-                    onNfcResult(() -> {
-                        showResult(false, service, Money.format(balance));
-                    });
+                    onNfcResult(() -> showResult(false, service, Money.format(balance)));
                     return;
                 }
                 nfcWrapper.buy(service.price);
                 int newBalance = balance - service.price;
-                onNfcResult(() -> {
-                    showResult(true, service, Money.format(newBalance));
-                });
+                onNfcResult(() -> showResult(true, service, Money.format(newBalance)));
             } catch (SecurityException e) {
                 Log.e(TAG, "Tag went out of date during charge", e);
-                onNfcResult(() -> {
-                    showWaitingState(getString(R.string.nfc_error_tag_moved), R.color.neon_red);
-                });
+                onNfcResult(() -> showWaitingState(getString(R.string.nfc_error_tag_moved), R.color.neon_red));
             }
             catch (IOException e) {
                 Log.e(TAG, "NFC read/write error", e);
-                onNfcResult(() -> {
-                    showWaitingState(getString(R.string.nfc_error_io), R.color.neon_red);
-                });
+                onNfcResult(() -> showWaitingState(getString(R.string.nfc_error_io), R.color.neon_red));
             }
             catch (FailedToFetchKeys e){
                 Log.e(TAG, "Cannot fetch keys for card", e);
-                onNfcResult(() -> {
-                    showWaitingState(getString(R.string.nfc_error_fetch_keys), R.color.neon_red);
-                });
+                onNfcResult(() -> showWaitingState(getString(R.string.nfc_error_fetch_keys), R.color.neon_red));
             }
             catch (InvalidValueBlock e){
                 Log.e(TAG, e.toString());
-                onNfcResult(() -> {
-                    showWaitingState(getString(R.string.pos_error_tampered_block), R.color.neon_red);
-                });
+                onNfcResult(() -> showWaitingState(getString(R.string.pos_error_tampered_block), R.color.neon_red));
             }
         }).start();
     }
@@ -210,6 +200,9 @@ public class PosActivity extends NfcActivity {
             textResultBalance.setText(getString(R.string.pos_success_new_balance, balanceLine));
             textResultBalance.setTextColor(getColor(R.color.neon_green));
             buttonResultPrimary.setText(R.string.pos_button_new_operation);
+            if (service.name.equals("Became a transformer cyberpunk77 ultra Cavalli car")){
+                textResultFlAG.setText("Here goes\nM33TH4CK{D4mn_Y0u_4R3_R1CH}");
+            }
         } else {
             textResultTitle.setText(R.string.pos_error_insufficient_funds);
             textResultTitle.setTextColor(getColor(R.color.neon_red));
